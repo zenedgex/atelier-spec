@@ -1,0 +1,164 @@
+# expect: 'cpu9' is not a unit
+standard: atelier-machine/0.1
+name: npu-edge-4e
+units:
+  tensor:
+    class: compute.tensor
+    block: systolic_ws
+    params:
+      R: 32
+      C: 32
+      DW: 8
+    control: command
+  vec:
+    class: compute.vector
+    block: simd_vec
+    params:
+      LANES: 64
+      DW: 16
+    capabilities:
+      ops:
+      - requant
+      - add
+      - mul
+      - max
+      - relu
+      - silu
+      - softmax
+      - rmsnorm
+      - rope
+    control: command
+  seq:
+    class: control.sequencer
+    block: sequencer
+  core:
+    class: control.core
+    block: cv32e40p
+    params:
+      BOOT_ADDR: 0
+  dma:
+    class: movement.dma
+    block: dma_2d
+    params:
+      CHANNELS: 4
+clusters:
+  engine:
+    count: 4
+    contains:
+    - tensor
+    - vec
+    - seq
+    - l1_a
+    - l1_w
+    - acc
+    wiring: sutra.engine/2
+memory:
+- name: l1_a
+  level: 1
+  kind: scratchpad
+  per: cluster
+  size: 128KiB
+  banks: 4
+  width: 256
+  ports: 1
+  block: spad_banked
+- name: l1_w
+  level: 1
+  kind: scratchpad
+  per: cluster
+  size: 128KiB
+  banks: 4
+  width: 256
+  ports: 1
+  block: spad_banked
+- name: acc
+  level: 1
+  kind: scratchpad
+  per: cluster
+  size: 32KiB
+  banks: 2
+  width: 1024
+  block: acc_mem
+- name: l2
+  level: 2
+  kind: scratchpad
+  per: chip
+  size: 2MiB
+  banks: 16
+  width: 512
+  ports: 4
+  block: sram_1rw
+- name: dram
+  level: 3
+  kind: dram
+  per: chip
+  type: lpddr4x
+  bandwidth: 17GB/s
+  block: dram_ctrl_ext
+movement:
+  dma:
+  - engine: dma
+    from: dram
+    to: l2
+  - engine: dma
+    from: l2
+    to:
+    - l1_a
+    - l1_w
+interconnect:
+  topology: crossbar
+  protocol: axi4
+  width: 512
+  masters:
+  - core
+  - dma
+  slaves:
+  - l2
+  - engine.*.regs
+  - dram
+control:
+  model: microcontroller
+  core: cpu9
+  os: none
+address_map:
+  boot_rom:
+    base: 0
+    size: 64KiB
+  l2:
+    base: 268435456
+    size: 2MiB
+  engine_regs:
+    base: 536870912
+    size: 64KiB
+    stride: 16KiB
+  dram:
+    base: 2147483648
+    size: 1GiB
+clocks:
+  core:
+    freq: 500MHz
+    units:
+    - core
+    - dma
+    - l2
+  engine:
+    freq: 1GHz
+    units:
+    - engine
+space:
+  units.tensor.block:
+  - systolic_ws
+  - systolic_os
+  - cim_macro
+  units.tensor.params.R:
+  - 16
+  - 32
+  - 64
+  memory.l2.size:
+  - 1MiB
+  - 2MiB
+  - 4MiB
+  clusters.engine.count:
+  - 1
+  - 2
+  - 4

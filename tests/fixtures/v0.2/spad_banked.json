@@ -1,0 +1,70 @@
+{
+ "standard": "atelier-block/0.1",
+ "name": "zenedgex.spad_banked",
+ "version": "1.0.0",
+ "owner": "ZenEdgeX",
+ "slot_class": "memory.scratchpad",
+ "top": "spad_banked",
+ "description": "Banked scratchpad: the engine reads rows, the host or the ACT loader writes them.",
+ "parameters": {
+  "W": {
+   "rule": "row width in bits"
+  },
+  "DEPTH": {
+   "rule": "rows"
+  },
+  "BANKS": {
+   "values": [
+    1,
+    2,
+    4,
+    8
+   ]
+  },
+  "AB": {
+   "rule": "clog2(DEPTH) (derived)"
+  }
+ },
+ "port_groups": [
+  {
+   "name": "clk_rst",
+   "protocol": "clock_reset",
+   "ports": {
+    "clk": "clk",
+    "rst_n": "rst_n"
+   }
+  },
+  {
+   "name": "eng",
+   "protocol": "read_sync",
+   "ports": {
+    "re": "eng_re",
+    "addr": "eng_addr",
+    "rdata": "eng_rdata"
+   }
+  },
+  {
+   "name": "host",
+   "protocol": "write_vr",
+   "role": "sink",
+   "ports": {
+    "valid": "host_valid",
+    "ready": "host_ready",
+    "addr": "host_addr",
+    "data": "host_wdata"
+   }
+  }
+ ],
+ "capabilities": [
+  {
+   "op": "store_rows",
+   "data": "W bits"
+  }
+ ],
+ "files": {
+  "rtl": [
+   "rtl/spad_banked.sv",
+   "rtl/sram.sv"
+  ]
+ }
+}

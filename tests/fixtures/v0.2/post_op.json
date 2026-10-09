@@ -1,0 +1,75 @@
+{
+ "standard": "atelier-block/0.1",
+ "name": "zenedgex.post_op",
+ "version": "1.0.0",
+ "owner": "ZenEdgeX",
+ "slot_class": "vector.post_op",
+ "top": "post_op",
+ "description": "Requantizes accumulator rows to INT8: per-channel multiplier, shift and zero point, saturation, an optional 256-entry table.",
+ "parameters": {
+  "C": {
+   "rule": "row width in channels"
+  },
+  "AW": {
+   "rule": "accumulator width"
+  },
+  "PCH": {
+   "rule": "channels with parameters"
+  },
+  "PRB": {
+   "rule": "clog2(PCH/C) (derived)"
+  },
+  "STAGES": {
+   "values": [
+    6
+   ],
+   "meaning": "fixed pipeline depth"
+  }
+ },
+ "port_groups": [
+  {
+   "name": "clk_rst",
+   "protocol": "clock_reset",
+   "ports": {
+    "clk": "clk",
+    "rst_n": "rst_n"
+   }
+  },
+  {
+   "name": "cfg",
+   "protocol": "config",
+   "ports": {
+    "valid": "cfg_valid",
+    "ready": "cfg_ready",
+    "addr": "cfg_addr",
+    "data": "cfg_data"
+   }
+  },
+  {
+   "name": "row",
+   "protocol": "row_pipe",
+   "ports": {
+    "re": "p_re",
+    "row": "p_row",
+    "data_in": "acc_row",
+    "en": "en",
+    "data_out": "y_row"
+   }
+  }
+ ],
+ "capabilities": [
+  {
+   "op": "requant",
+   "in": "int(AW)",
+   "out": "int8",
+   "scale": "per_channel",
+   "reference": "generator/isa.py post_op"
+  }
+ ],
+ "files": {
+  "rtl": [
+   "rtl/post_op.sv",
+   "rtl/sram.sv"
+  ]
+ }
+}

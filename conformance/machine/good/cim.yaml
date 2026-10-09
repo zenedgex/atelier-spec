@@ -1,0 +1,46 @@
+# CIM accelerator (R1.4): the Sutra CIM engine around a CIM macro. This is what runs today, written
+# in the draft format: atelier-machine/0.1. Swap `units.cim.block` for a customer macro.
+standard: atelier-machine/0.1
+name: sutra-cim-4e
+
+units:
+  cim:
+    class: compute.tensor
+    block: cim_macro                       # or customer/acme_cim, or sutra-cim-macro's model
+    params: {R: 32, C: 16, DW: 8, IB: 2}
+    capabilities: {kind: cim, weight_residency: true}
+    control: command
+  post: {class: vector.post_op, block: post_op}
+  act:  {class: vector.elementwise, block: act_unit}
+  row:  {class: vector.row, block: row_unit}
+  seq:  {class: control.sequencer, block: sequencer}
+  core: {class: control.core, block: cv32e40p}
+
+clusters:
+  engine:
+    count: 4
+    contains: [cim, post, act, row, seq, l1_a, cmem, acc, actmem]
+    wiring: sutra.engine/2
+
+memory:
+  - {name: l1_a,   level: 1, kind: scratchpad, per: cluster, size: 16KiB, banks: 4, width: 256, block: spad_banked}
+  - {name: cmem,   level: 1, kind: compute, per: cluster, size: 8KiB, note: "inside the CIM macro; DEPTH 256 x C*DW"}
+  - {name: acc,    level: 1, kind: scratchpad, per: cluster, size: 8KiB, block: acc_mem}
+  - {name: actmem, level: 1, kind: scratchpad, per: cluster, size: 32KiB, banks: 4, block: spad_banked}
+  - {name: ram,    level: 2, kind: scratchpad, per: chip, size: 256KiB, block: sram_1rw}
+
+interconnect:
+  topology: bus
+  protocol: obi
+  masters: [core]
+  slaves: [ram, engine.*.regs]
+
+control: {model: microcontroller, core: core, os: none}
+
+clocks:
+  main: {freq: 500MHz, units: [core, engine, ram]}
+
+space:
+  units.cim.params.R: [32, 64]
+  units.cim.params.IB: [1, 2, 4]
+  clusters.engine.count: [1, 2, 4]

@@ -1,0 +1,47 @@
+# expect: an accelerator.op block is programmed by commands
+standard: atelier-block/1.0
+name: acme_vec
+version: 1.2.0
+slot_class: accelerator.op
+top: acme_vec_top
+parameters:
+- LANES
+- DW
+files:
+  rtl:
+  - rtl/acme_vec_top.sv
+  - rtl/acme_vec_lane.sv
+port_groups:
+- name: clk
+  protocol: clock_reset
+  ports:
+    clk: clk_i
+    rst_n: rst_ni
+- name: cfg
+  protocol: axi4_lite
+  role: slave
+  prefix: s_axil_
+- name: mem
+  protocol: mem_req
+  role: master
+  prefix: m_mem_
+- name: irq
+  protocol: interrupt
+  ports:
+    irq: done_irq_o
+capabilities:
+  lanes:
+    param: LANES
+  formats:
+  - int8
+  - int16
+programming:
+  model: none
+model: model.py
+cost:
+  area:
+    value: 0.21
+    unit: mm2
+    evidence: datasheet
+    conditions:
+      node: customer-7nm

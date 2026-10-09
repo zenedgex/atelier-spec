@@ -1,0 +1,157 @@
+# expect: evidence 'guess' is not a label
+standard: atelier-block/1.0
+name: acme_vec
+version: 1.2.0
+slot_class: compute.vector
+top: acme_vec_top
+parameters:
+- LANES
+- DW
+files:
+  rtl:
+  - rtl/acme_vec_top.sv
+  - rtl/acme_vec_lane.sv
+port_groups:
+- name: clk
+  protocol: clock_reset
+  ports:
+    clk: clk_i
+    rst_n: rst_ni
+- name: cfg
+  protocol: axi4_lite
+  role: slave
+  prefix: s_axil_
+- name: mem
+  protocol: mem_req
+  role: master
+  prefix: m_mem_
+- name: irq
+  protocol: interrupt
+  ports:
+    irq: done_irq_o
+capabilities:
+  lanes:
+    param: LANES
+  formats:
+  - int8
+  - int16
+programming:
+  model: command
+  doorbell:
+    group: cfg
+    reg: CMD_PUSH
+    offset: 16
+  completion:
+    irq: irq
+    or_poll:
+      reg: STATUS
+      offset: 20
+      bit: 0
+  word: 128
+  commands:
+  - name: vmul_requant
+    opcode: 18
+    fields:
+    - name: opcode
+      bits:
+      - 0
+      - 7
+      kind: opcode
+    - name: src_a
+      bits:
+      - 8
+      - 31
+      kind: addr
+      space: l1
+    - name: src_b
+      bits:
+      - 32
+      - 55
+      kind: addr
+      space: l1
+    - name: dst
+      bits:
+      - 64
+      - 87
+      kind: addr
+      space: l1
+    - name: len
+      bits:
+      - 88
+      - 103
+      kind: count
+    - name: shift
+      bits:
+      - 104
+      - 109
+      kind: imm
+    semantics:
+    - op: mul
+      in:
+      - src_a
+      - src_b
+      out: t
+      formats:
+      - int8
+      - int8
+      - int16
+    - op: requant
+      in:
+      - t
+      out: dst
+      attrs:
+        shift: shift
+        round: half_even
+      formats:
+      - int16
+      - int8
+    constraints:
+    - len % LANES == 0
+    - len <= 4096
+    cycles: 4 + len / LANES
+    evidence: datasheet
+  - name: vexp_lut
+    opcode: 32
+    fields:
+    - name: opcode
+      bits:
+      - 0
+      - 7
+      kind: opcode
+    - name: src
+      bits:
+      - 8
+      - 31
+      kind: addr
+      space: l1
+    - name: dst
+      bits:
+      - 32
+      - 55
+      kind: addr
+      space: l1
+    - name: len
+      bits:
+      - 64
+      - 79
+      kind: count
+    semantics:
+    - op: exp_lut
+      in:
+      - src
+      out: dst
+      formats:
+      - int8
+      - int16
+      attrs:
+        table: acme_exp_v1
+    cycles: 6 + len / LANES
+    evidence: datasheet
+model: model.py
+cost:
+  area:
+    value: 0.21
+    unit: mm2
+    evidence: guess
+    conditions:
+      node: customer-7nm

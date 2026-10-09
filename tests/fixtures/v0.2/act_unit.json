@@ -1,0 +1,148 @@
+{
+ "standard": "atelier-block/0.1",
+ "name": "zenedgex.act_unit",
+ "version": "1.0.0",
+ "owner": "ZenEdgeX",
+ "slot_class": "vector.elementwise",
+ "top": "act_unit",
+ "description": "Activation unit with its activation memory: the im2col loader (LOAD_A), elementwise add, multiply, max, pooling and table ops (ELT), and the DRAIN_QA row writes. Holds two slot classes today (vector.elementwise and memory.activation); stage 1 splits them.",
+ "parameters": {
+  "R": {
+   "rule": "engine rows"
+  },
+  "C": {
+   "rule": "engine columns"
+  },
+  "WORDS": {
+   "rule": "8-byte words of activation memory"
+  },
+  "NB": {
+   "values": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64
+   ],
+   "meaning": "banks"
+  },
+  "WPR": {
+   "rule": "R/8 (derived)"
+  },
+  "BD": {
+   "rule": "WORDS/NB (derived)"
+  },
+  "BAB": {
+   "rule": "clog2(BD) (derived)"
+  }
+ },
+ "port_groups": [
+  {
+   "name": "clk_rst",
+   "protocol": "clock_reset",
+   "ports": {
+    "clk": "clk",
+    "rst_n": "rst_n"
+   }
+  },
+  {
+   "name": "cfg",
+   "protocol": "config",
+   "ports": {
+    "we": "cfg_we",
+    "addr": "cfg_addr",
+    "data": "cfg_data"
+   }
+  },
+  {
+   "name": "ld",
+   "protocol": "command",
+   "role": "sink",
+   "ports": {
+    "valid": "ld_valid",
+    "ready": "ld_ready",
+    "cmd": "ld_cmd",
+    "done": "ld_done"
+   }
+  },
+  {
+   "name": "aw",
+   "protocol": "write_vr",
+   "role": "source",
+   "ports": {
+    "valid": "aw_valid",
+    "ready": "aw_ready",
+    "addr": "aw_addr",
+    "data": "aw_data"
+   }
+  },
+  {
+   "name": "hw",
+   "protocol": "write_vr",
+   "role": "sink",
+   "ports": {
+    "valid": "hw_valid",
+    "ready": "hw_ready",
+    "addr": "hw_addr",
+    "data": "hw_data",
+    "mask": "hw_mask"
+   }
+  },
+  {
+   "name": "wq",
+   "protocol": "stream_v",
+   "role": "sink",
+   "ports": {
+    "valid": "wq_valid",
+    "data": "wq_data"
+   },
+   "fields": [
+    "wq_sub",
+    "wq_m",
+    "wq_g0"
+   ]
+  },
+  {
+   "name": "status",
+   "protocol": "status",
+   "ports": {
+    "busy": "busy"
+   }
+  }
+ ],
+ "capabilities": [
+  {
+   "op": "im2col_load",
+   "reference": "generator/isa.py"
+  },
+  {
+   "op": "elt_add",
+   "reference": "generator/isa.py"
+  },
+  {
+   "op": "elt_mul",
+   "reference": "generator/isa.py"
+  },
+  {
+   "op": "elt_max",
+   "reference": "generator/isa.py"
+  },
+  {
+   "op": "pool_max",
+   "reference": "generator/isa.py"
+  },
+  {
+   "op": "map_lut",
+   "reference": "generator/isa.py"
+  }
+ ],
+ "files": {
+  "rtl": [
+   "rtl/act_unit.sv",
+   "rtl/lane_q.sv",
+   "rtl/sram.sv"
+  ]
+ }
+}

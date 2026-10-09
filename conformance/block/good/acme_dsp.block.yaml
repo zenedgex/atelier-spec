@@ -1,0 +1,46 @@
+# A customer's programmable DSP core (programming.model: isa). Draft: atelier-block/1.0.
+# The compiler emits C calling these intrinsics and micro-kernels; the customer's toolchain builds it.
+# Intrinsic names here are invented for the example.
+standard: atelier-block/1.0
+name: acme_dsp
+version: 3.0.1
+slot_class: compute.vliw
+top: acme_dsp_core
+parameters: [VLEN, BOOT_ADDR]
+files: {rtl: [rtl/acme_dsp_core.sv]}          # or an encrypted netlist / a model only, for an ISS-only flow
+port_groups:
+  - {name: clk,   protocol: clock_reset, ports: {clk: clk, rst_n: resetn}}
+  - {name: imem,  protocol: axi4, role: master, prefix: m_axi_i_}
+  - {name: dmem,  protocol: axi4, role: master, prefix: m_axi_d_}
+  - {name: tcm,   protocol: mem_req, role: master, prefix: tcm_}
+  - {name: irq,   protocol: interrupt, ports: {irq: irq_i}, fields: [irq_id_i]}
+  - {name: boot,  protocol: strap, fields: [boot_addr_i]}
+
+core:
+  boot_addr: {param: BOOT_ADDR}
+  irq: {lines: 32}
+
+programming:
+  model: isa
+  isa: vendor:acme-dsp-v3
+  toolchain:
+    cc: acme-clang
+    flags: [-O3, -mvlen=1024]
+    link: acme-ld
+    iss: acme-iss --cycle-approx
+  headers: [include/acme_vec.h]
+  intrinsics:
+    - {op: mul, formats: [int8, int8, int16], intrinsic: acme_vmpy_b_h, vector: 128}
+    - {op: add, formats: [int16, int16, int16], intrinsic: acme_vadd_h, vector: 64}
+    - {op: max, formats: [int8, int8, int8], intrinsic: acme_vmax_b, vector: 128}
+    - {op: requant, formats: [int32, int8], intrinsic: acme_vasr_rnd_sat, vector: 32, attrs: {round: half_even}}
+  microkernels:
+    - {op: matmul, formats: [int8, int8, int32], symbol: acme_gemm_i8, library: lib/libacme_nn.a,
+       signature: "void acme_gemm_i8(int m, int n, int k, const int8_t*, int, const int8_t*, int, int32_t*, int)",
+       tile: {m: 32, n: 32, k: 128}, cycles: "m*n*k/1024 + 40", evidence: datasheet}
+    - {op: softmax, formats: [int8, int8], symbol: acme_softmax_i8, library: lib/libacme_nn.a,
+       signature: "void acme_softmax_i8(int rows, int cols, const int8_t*, int8_t*, int shift)",
+       cycles: "rows*(cols/32 + 20)", evidence: datasheet}
+  abi: {stack: 64KiB}
+
+model: model.py          # the ISS is the executable model; model.py wraps it for verify

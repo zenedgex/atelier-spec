@@ -1,0 +1,126 @@
+{
+ "standard": "atelier-block/0.1",
+ "name": "example.cim_macro_ext",
+ "version": "1.0.0",
+ "owner": "illustrative vendor stand-in",
+ "slot_class": "compute.matmul_tile",
+ "top": "cim_macro_ext",
+ "description": "A behavioural stand-in for a vendor's CIM macro (longer tile and result latencies), used to test that an outside block fills the slot unchanged. Its datasheet: generator/tests/cim_ext_model.json.",
+ "parameters": {
+  "R": {
+   "values": [
+    16,
+    32,
+    64,
+    128
+   ],
+   "meaning": "reduction length of a tile (weight rows)"
+  },
+  "C": {
+   "values": [
+    8,
+    16,
+    32,
+    64
+   ],
+   "meaning": "output columns"
+  },
+  "DW": {
+   "values": [
+    8
+   ],
+   "meaning": "signed operand width"
+  },
+  "IB": {
+   "values": [
+    1,
+    2,
+    4,
+    8
+   ],
+   "meaning": "input bits applied per cycle; divides DW"
+  },
+  "DEPTH": {
+   "rule": "a multiple of R",
+   "meaning": "weight rows held"
+  },
+  "AW": {
+   "rule": "2*DW + clog2(R)",
+   "meaning": "result width (derived)"
+  },
+  "TILE_LAT": {
+   "rule": ">= 1",
+   "meaning": "cycles from tile_req to the first accepted row"
+  },
+  "SB": {
+   "rule": "clog2(DEPTH/R)",
+   "meaning": "slot address bits (derived)"
+  },
+  "RES_LAT": {
+   "rule": ">= 1",
+   "meaning": "cycles from a row to its result"
+  }
+ },
+ "port_groups": [
+  {
+   "name": "clk_rst",
+   "protocol": "clock_reset",
+   "ports": {
+    "clk": "clk",
+    "rst_n": "rst_n"
+   }
+  },
+  {
+   "name": "wr",
+   "protocol": "write_vr",
+   "role": "sink",
+   "ports": {
+    "valid": "wr_valid",
+    "ready": "wr_ready",
+    "addr": "wr_addr",
+    "data": "wr_data"
+   }
+  },
+  {
+   "name": "tile",
+   "protocol": "tile_req_hold",
+   "ports": {
+    "req": "tile_req",
+    "slot": "slot",
+    "hold": "hold"
+   }
+  },
+  {
+   "name": "x",
+   "protocol": "stream_v",
+   "role": "sink",
+   "ports": {
+    "valid": "x_valid",
+    "data": "x_row"
+   }
+  },
+  {
+   "name": "y",
+   "protocol": "stream_v",
+   "role": "source",
+   "ports": {
+    "valid": "y_valid",
+    "data": "y_row"
+   }
+  }
+ ],
+ "capabilities": [
+  {
+   "op": "matmul_tile",
+   "a": "int8",
+   "w": "int8",
+   "acc": "int(2*DW+clog2(R))",
+   "reference": "generator/isa.py COMPUTE"
+  }
+ ],
+ "files": {
+  "rtl": [
+   "rtl/cim_macro_ext_model.sv"
+  ]
+ }
+}

@@ -1,0 +1,89 @@
+{
+ "standard": "atelier-block/0.1",
+ "name": "zenedgex.row_unit",
+ "version": "1.0.0",
+ "owner": "ZenEdgeX",
+ "slot_class": "vector.row",
+ "top": "row_unit",
+ "description": "Row reductions for language models: RMS normalization with gains and softmax to Q7, by tables (in development: not yet integrated in the engine).",
+ "parameters": {
+  "ROWW": {
+   "rule": "words in a row at most"
+  },
+  "RAB": {
+   "rule": "clog2(ROWW) (derived)"
+  }
+ },
+ "port_groups": [
+  {
+   "name": "clk_rst",
+   "protocol": "clock_reset",
+   "ports": {
+    "clk": "clk",
+    "rst_n": "rst_n"
+   }
+  },
+  {
+   "name": "op",
+   "protocol": "start_done",
+   "ports": {
+    "start": "start",
+    "done": "done"
+   },
+   "fields": [
+    "kind_sm",
+    "rows",
+    "m0",
+    "pa",
+    "pb",
+    "pd",
+    "groups",
+    "nel",
+    "nr"
+   ]
+  },
+  {
+   "name": "rd",
+   "protocol": "read_sync",
+   "ports": {
+    "re": "rd_v",
+    "addr": "rd_a",
+    "rdata": "rd_d"
+   }
+  },
+  {
+   "name": "wr",
+   "protocol": "write_vr",
+   "role": "source",
+   "ports": {
+    "valid": "wr_v",
+    "ready": "wr_ok",
+    "addr": "wr_a",
+    "data": "wr_d"
+   }
+  },
+  {
+   "name": "status",
+   "protocol": "status",
+   "ports": {
+    "busy": "busy"
+   }
+  }
+ ],
+ "capabilities": [
+  {
+   "op": "row_norm",
+   "reference": "generator/isa.py row_norm"
+  },
+  {
+   "op": "row_softmax",
+   "reference": "generator/isa.py row_softmax"
+  }
+ ],
+ "files": {
+  "rtl": [
+   "rtl/row_unit.sv",
+   "rtl/sram.sv"
+  ]
+ }
+}

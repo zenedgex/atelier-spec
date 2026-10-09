@@ -1,0 +1,46 @@
+# atelier-ops/0.1: the operators units and accelerators declare by name (standards/ops.md).
+# Integer semantics are exact. `reference: ref` means atelier_spec.ops_ref implements it; `pending`
+# means the name and signature are fixed but the bit-exact reference is still to be written.
+# A block MAY declare a pending op; its L1 check waits for the reference.
+standard: atelier-ops/0.1
+ops:
+  # --- linear algebra
+  matmul:     {version: 1, in: [a, b], out: [y], attrs: {}, reference: ref,
+               semantics: "y[m,n] = sum_k a[m,k]*b[k,n], exact in the output format (no overflow allowed)"}
+  conv2d:     {version: 1, in: [x, w], out: [y], attrs: {kernel: "[kh,kw]", stride: "[sh,sw]", pad: "[t,l,b,r]", groups: int},
+               reference: pending, semantics: "NHWC x, HWIO w, exact sums; groups == channels is depthwise"}
+  # --- elementwise, exact into the output format, saturating
+  add:        {version: 1, in: [a, b], out: [y], attrs: {}, reference: ref, semantics: "y = sat(a + b)"}
+  sub:        {version: 1, in: [a, b], out: [y], attrs: {}, reference: ref, semantics: "y = sat(a - b)"}
+  mul:        {version: 1, in: [a, b], out: [y], attrs: {}, reference: ref, semantics: "y = sat(a * b)"}
+  max:        {version: 1, in: [a, b], out: [y], attrs: {}, reference: ref, semantics: "y = max(a, b)"}
+  min:        {version: 1, in: [a, b], out: [y], attrs: {}, reference: ref, semantics: "y = min(a, b)"}
+  relu:       {version: 1, in: [x], out: [y], attrs: {}, reference: ref, semantics: "y = max(x, 0)"}
+  requant:    {version: 1, in: [x], out: [y],
+               attrs: {multiplier: "int or per-channel ints, default 1", shift: "int >= 0", zero_point: "int, default 0",
+                       round: "half_up | half_even | floor, default half_up"},
+               reference: ref, semantics: "y = sat(round_shift(x * multiplier, shift, round) + zero_point)"}
+  lut:        {version: 1, in: [x], out: [y], attrs: {table: "name of a table with one entry per input value"},
+               reference: ref, semantics: "y = table[x - min(format)]"}
+  exp_lut:    {version: 1, in: [x], out: [y], attrs: {table: name}, reference: ref, alias_of: lut,
+               semantics: "lut with an exponential table"}
+  silu:       {version: 1, in: [x], out: [y], attrs: {table: name}, reference: pending}
+  gelu:       {version: 1, in: [x], out: [y], attrs: {table: name}, reference: pending}
+  # --- reductions along the last axis
+  softmax:    {version: 1, in: [x], out: [y], attrs: {shift: int}, reference: pending,
+               semantics: "from Sutra's isa.row_softmax (tables, Q7 output)"}
+  rmsnorm:    {version: 1, in: [x, g], out: [y], attrs: {}, reference: pending,
+               semantics: "from Sutra's isa.row_norm (tables)"}
+  layernorm:  {version: 1, in: [x, g, b], out: [y], attrs: {}, reference: pending}
+  rope:       {version: 1, in: [x, pos], out: [y], attrs: {theta: number}, reference: pending}
+  # --- data movement
+  transpose:  {version: 1, in: [x], out: [y], attrs: {perm: "list of axes"}, reference: ref}
+  concat:     {version: 1, in: [xs], out: [y], attrs: {axis: int}, reference: ref}
+  gather:     {version: 1, in: [x, idx], out: [y], attrs: {axis: int}, reference: ref}
+  maxpool:    {version: 1, in: [x], out: [y], attrs: {kernel: "[kh,kw]", stride: "[sh,sw]", pad: "[t,l,b,r]"},
+               reference: pending}
+  upsample:   {version: 1, in: [x], out: [y], attrs: {scale: int, mode: nearest}, reference: pending}
+  im2col:     {version: 1, in: [x], out: [y], attrs: {kernel: "[kh,kw]", stride: "[sh,sw]", pad: "[t,l,b,r]"},
+               reference: pending}
+
+formats: [int4, int8, int16, int32, int48, int64, uint7, uint8]

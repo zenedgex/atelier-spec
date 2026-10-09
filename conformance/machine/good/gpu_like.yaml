@@ -1,0 +1,54 @@
+# GPU-like chip: clusters of SIMT lanes with tensor cores (R1.2). Draft format: atelier-machine/0.1.
+# The SM is the customer's block; we size it, give it memory, integrate it, and compile kernels for it
+# through the customer's toolchain.
+standard: atelier-machine/0.1
+name: gpu-like-8sm
+
+units:
+  sm:
+    class: compute.simt
+    block: customer/sm_v3                 # the customer's SM RTL, imported as a block
+    params: {WARP: 32, WARPS: 16}
+    control: isa
+    core:                                  # core contract, normally in the block's block.json
+      isa: vendor:simt-v3
+      toolchain: {cc: simt-clang, flags: [-O3]}
+      intrinsics: headers/simt_mma.h
+  tc:
+    class: compute.tensor
+    block: customer/tensor_core
+    params: {M: 16, N: 8, K: 16}
+    capabilities: {formats: [int8xint8->int32, fp16xfp16->fp32]}
+    control: isa                           # issued as instructions by the SM
+  cp:   {class: control.core, block: cva6, params: {XLEN: 64}}    # command processor
+  dma:  {class: movement.dma, block: dma_2d, params: {CHANNELS: 8}}
+
+clusters:
+  sm_cluster:
+    count: 8
+    contains: [sm, tc, rf, smem]
+    wiring: customer/sm_cluster
+
+memory:
+  - {name: rf,   level: 0, kind: register_file, per: cluster, size: 256KiB}
+  - {name: smem, level: 1, kind: scratchpad, per: cluster, size: 128KiB, banks: 32, width: 32}
+  - {name: l2,   level: 2, kind: cache, per: chip, size: 4MiB, banks: 16, ways: 16, line: 128B, block: cache_l2}
+  - {name: dram, level: 3, kind: dram, per: chip, type: lpddr5, bandwidth: 51GB/s}
+
+interconnect:
+  topology: crossbar
+  protocol: axi4
+  width: 1024
+  masters: [sm_cluster.*, cp, dma]
+  slaves: [l2]
+
+control: {model: application, core: cp, os: linux}
+
+clocks:
+  sm: {freq: 1.2GHz, units: [sm_cluster]}
+  soc: {freq: 800MHz, units: [cp, dma, l2]}
+
+space:
+  clusters.sm_cluster.count: [4, 8, 16]
+  memory.smem.size: [64KiB, 128KiB, 228KiB]
+  memory.l2.size: [2MiB, 4MiB, 8MiB]

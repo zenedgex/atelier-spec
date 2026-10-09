@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "atelier-block/1.0",
+  "title": "Atelier block contract",
+  "type": "object",
+  "required": ["standard", "name", "version", "slot_class", "top", "parameters", "port_groups", "files"],
+  "properties": {
+    "standard": {"type": "string", "pattern": "^atelier-block/1\\.[0-9]+$"},
+    "name": {"type": "string", "pattern": "^[A-Za-z0-9_.\\-/]+$"},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([-+].*)?$"},
+    "owner": {"type": "string"},
+    "description": {"type": "string"},
+    "slot_class": {"type": "string", "pattern": "^[a-z]+\\.[a-z_0-9]+$"},
+    "kind": {"type": "string"},
+    "top": {"type": "string"},
+    "parameters": {
+      "oneOf": [
+        {"type": "array", "items": {"type": "string"}},
+        {"type": "object", "additionalProperties": {"type": "object"}}
+      ]
+    },
+    "port_groups": {"type": "array", "items": {"$ref": "#/$defs/group"}},
+    "capabilities": {},
+    "timing": {"type": "object"},
+    "cost": {"type": "object"},
+    "core": {"$ref": "#/$defs/core"},
+    "memory": {"$ref": "#/$defs/memory"},
+    "programming": {"$ref": "#/$defs/programming"},
+    "files": {
+      "type": "object",
+      "properties": {"rtl": {"type": "array", "items": {"type": "string"}},
+                     "include": {"type": "array", "items": {"type": "string"}}},
+      "required": ["rtl"]
+    },
+    "elaborate": {"type": "object"},
+    "model": {"type": "string"},
+    "datasheet": {}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "group": {
+      "type": "object",
+      "required": ["name", "protocol"],
+      "properties": {
+        "name": {"type": "string"},
+        "protocol": {"type": "string"},
+        "role": {"enum": ["source", "sink", "master", "slave"]},
+        "ports": {
+          "oneOf": [
+            {"type": "array", "items": {"type": "string"}},
+            {"type": "object", "additionalProperties": {"type": "string"}}
+          ]
+        },
+        "prefix": {"type": "string"},
+        "suffix": {"type": "string"},
+        "fields": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "core": {
+      "type": "object",
+      "properties": {
+        "isa": {"type": "string"},
+        "boot_addr": {},
+        "irq": {"type": "object"},
+        "bus": {"type": "object"}
+      }
+    },
+    "memory": {
+      "type": "object",
+      "properties": {
+        "size": {}, "banks": {}, "width": {}, "ports": {}, "read_latency": {},
+        "mask_granularity": {}, "retention": {"type": "string"},
+        "realisation": {"enum": ["rtl", "macro", "compiler"]},
+        "access": {"enum": ["rows", "words", "bytes"]}, "data": {"type": ["string", "null"]}
+      }
+    },
+    "programming": {
+      "type": "object",
+      "required": ["model"],
+      "properties": {
+        "model": {"enum": ["none", "command", "isa"]},
+        "doorbell": {"type": "object"},
+        "completion": {"type": "object"},
+        "word": {"type": "integer", "minimum": 8},
+        "commands": {"type": "array", "items": {"$ref": "#/$defs/command"}},
+        "isa": {"type": "string"},
+        "toolchain": {
+          "type": "object",
+          "required": ["cc"],
+          "properties": {"cc": {"type": "string"}, "flags": {"type": "array"}, "link": {"type": "string"},
+                         "objcopy": {"type": "string"}, "iss": {"type": "string"}}
+        },
+        "headers": {"type": "array", "items": {"type": "string"}},
+        "intrinsics": {"type": "array", "items": {
+          "type": "object", "required": ["op", "intrinsic"],
+          "properties": {"op": {"type": "string"}, "intrinsic": {"type": "string"}, "formats": {"type": "array"},
+                         "vector": {"type": "integer"}, "attrs": {"type": "object"}}}},
+        "microkernels": {"type": "array", "items": {
+          "type": "object", "required": ["op", "symbol", "signature"],
+          "properties": {"op": {"type": "string"}, "symbol": {"type": "string"}, "signature": {"type": "string"},
+                         "library": {"type": "string"}, "formats": {"type": "array"}, "tile": {"type": "object"},
+                         "cycles": {"type": ["string", "number"]}, "evidence": {"type": "string"}}}},
+        "abi": {"type": "object"},
+        "ops": {"type": "object", "description": "a customer's op set extension: name -> spec"}
+      },
+      "additionalProperties": false
+    },
+    "command": {
+      "type": "object",
+      "required": ["name", "opcode", "fields", "semantics"],
+      "properties": {
+        "name": {"type": "string"},
+        "opcode": {"type": "integer", "minimum": 0},
+        "fields": {"type": "array", "items": {
+          "type": "object", "required": ["name", "bits", "kind"],
+          "properties": {"name": {"type": "string"},
+                         "bits": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 2, "maxItems": 2},
+                         "kind": {"enum": ["opcode", "addr", "count", "imm", "flag", "enum", "reserved"]},
+                         "space": {"type": "string"}, "values": {"type": "object"}},
+          "additionalProperties": false}},
+        "semantics": {"type": "array", "items": {
+          "type": "object", "required": ["op"],
+          "properties": {"op": {"type": "string"}, "in": {"type": "array"}, "out": {"type": "string"},
+                         "formats": {"type": "array"}, "attrs": {"type": "object"}}}},
+        "constraints": {"type": "array", "items": {"type": "string"}},
+        "cycles": {"type": ["string", "number"]},
+        "evidence": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

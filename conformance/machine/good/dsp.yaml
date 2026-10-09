@@ -1,0 +1,49 @@
+# DSP: VLIW scalar core with a wide vector unit and a matrix unit (R1.3), Hexagon-style.
+# Draft format: atelier-machine/0.1. The DSP core is the customer's; the matrix unit can be ours.
+standard: atelier-machine/0.1
+name: dsp-vx-mx
+
+units:
+  dsp:
+    class: compute.vliw
+    block: customer/dsp_core               # scalar VLIW slots + the vector unit, one block
+    params: {SLOTS: 4, VLEN: 1024, VCTX: 4}
+    control: isa
+    core:
+      isa: vendor:dsp-v2
+      toolchain: {cc: dsp-clang, flags: [-O3, -mvector-length=128B], iss: dsp-sim}
+      intrinsics: headers/dsp_vec.h
+    capabilities:
+      ops: [add, mul, max, relu, requant, softmax, rmsnorm, rope, gather, transpose]
+  mx:
+    class: compute.tensor
+    block: matrix_unit                     # ours (HMX-like) or the customer's
+    params: {M: 32, N: 32, DW: 8}
+    capabilities: {formats: [int8xint8->int32, int4xint8->int32]}
+    control: isa                           # issued by the DSP as coprocessor instructions
+  dma: {class: movement.dma, block: dma_2d, params: {CHANNELS: 2}}
+
+memory:
+  - {name: vregs, level: 0, kind: register_file, per: dsp, size: 4KiB}
+  - {name: tcm,  level: 1, kind: tcm, per: chip, size: 1MiB, banks: 8, width: 1024, block: tcm}
+  - {name: l2,   level: 2, kind: cache, per: chip, size: 1MiB, ways: 8, line: 64B, block: cache_l2}
+  - {name: dram, level: 3, kind: dram, per: chip, type: lpddr4x, bandwidth: 17GB/s}
+
+movement:
+  dma: [{engine: dma, from: dram, to: tcm}]
+
+interconnect:
+  topology: bus
+  protocol: axi4
+  width: 256
+  masters: [dsp, dma]
+  slaves: [tcm, l2, dram]
+
+control: {model: computing, core: dsp, os: rtos}
+
+clocks:
+  dsp: {freq: 1GHz, units: [dsp, mx, tcm]}
+
+space:
+  units.mx.params.M: [16, 32]
+  memory.tcm.size: [512KiB, 1MiB, 2MiB]

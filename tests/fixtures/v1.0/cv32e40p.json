@@ -1,0 +1,186 @@
+{
+ "standard": "atelier-block/1.0",
+ "name": "openhw.cv32e40p",
+ "version": "1.0.0",
+ "owner": "OpenHW Group (third party, Solderpad licence)",
+ "slot_class": "control.core",
+ "top": "cv32e40p_top",
+ "parameters": {
+  "COREV_PULP": {
+   "default": 0
+  },
+  "COREV_CLUSTER": {
+   "default": 0
+  },
+  "FPU": {
+   "default": 0
+  },
+  "FPU_ADDMUL_LAT": {
+   "default": 0
+  },
+  "FPU_OTHERS_LAT": {
+   "default": 0
+  },
+  "ZFINX": {
+   "default": 0
+  },
+  "NUM_MHPMCOUNTERS": {
+   "default": 1
+  }
+ },
+ "port_groups": [
+  {
+   "name": "clk_rst",
+   "protocol": "clock_reset",
+   "ports": {
+    "clk": "clk_i",
+    "rst_n": "rst_ni"
+   }
+  },
+  {
+   "name": "instr",
+   "protocol": "obi",
+   "role": "source",
+   "ports": {
+    "req": "instr_req_o",
+    "gnt": "instr_gnt_i",
+    "rvalid": "instr_rvalid_i",
+    "addr": "instr_addr_o",
+    "rdata": "instr_rdata_i"
+   }
+  },
+  {
+   "name": "data",
+   "protocol": "obi",
+   "role": "source",
+   "ports": {
+    "req": "data_req_o",
+    "gnt": "data_gnt_i",
+    "rvalid": "data_rvalid_i",
+    "addr": "data_addr_o",
+    "rdata": "data_rdata_i",
+    "we": "data_we_o",
+    "be": "data_be_o",
+    "wdata": "data_wdata_o"
+   }
+  },
+  {
+   "name": "irq",
+   "protocol": "interrupt",
+   "ports": {
+    "irq": "irq_i",
+    "ack": "irq_ack_o",
+    "id": "irq_id_o"
+   }
+  },
+  {
+   "name": "debug",
+   "protocol": "debug",
+   "ports": {
+    "req": "debug_req_i"
+   },
+   "fields": [
+    "debug_havereset_o",
+    "debug_running_o",
+    "debug_halted_o"
+   ]
+  },
+  {
+   "name": "run",
+   "protocol": "run_control",
+   "ports": {
+    "enable": "fetch_enable_i",
+    "sleep": "core_sleep_o"
+   }
+  },
+  {
+   "name": "straps",
+   "protocol": "strap",
+   "ports": {},
+   "fields": [
+    "pulp_clock_en_i",
+    "scan_cg_en_i",
+    "boot_addr_i",
+    "mtvec_addr_i",
+    "dm_halt_addr_i",
+    "hart_id_i",
+    "dm_exception_addr_i"
+   ]
+  }
+ ],
+ "capabilities": [],
+ "files": {
+  "rtl": [
+   "rtl/cv32e40p_apu_core_pkg.sv",
+   "rtl/cv32e40p_fpu_pkg.sv",
+   "rtl/cv32e40p_pkg.sv",
+   "rtl/cv32e40p_if_stage.sv",
+   "rtl/cv32e40p_cs_registers.sv",
+   "rtl/cv32e40p_register_file_ff.sv",
+   "rtl/cv32e40p_load_store_unit.sv",
+   "rtl/cv32e40p_id_stage.sv",
+   "rtl/cv32e40p_aligner.sv",
+   "rtl/cv32e40p_decoder.sv",
+   "rtl/cv32e40p_compressed_decoder.sv",
+   "rtl/cv32e40p_fifo.sv",
+   "rtl/cv32e40p_prefetch_buffer.sv",
+   "rtl/cv32e40p_hwloop_regs.sv",
+   "rtl/cv32e40p_mult.sv",
+   "rtl/cv32e40p_int_controller.sv",
+   "rtl/cv32e40p_ex_stage.sv",
+   "rtl/cv32e40p_alu_div.sv",
+   "rtl/cv32e40p_alu.sv",
+   "rtl/cv32e40p_ff_one.sv",
+   "rtl/cv32e40p_popcnt.sv",
+   "rtl/cv32e40p_apu_disp.sv",
+   "rtl/cv32e40p_controller.sv",
+   "rtl/cv32e40p_obi_interface.sv",
+   "rtl/cv32e40p_prefetch_controller.sv",
+   "rtl/cv32e40p_sleep_unit.sv",
+   "rtl/cv32e40p_core.sv",
+   "rtl/cv32e40p_top.sv",
+   "rtl/cv32e40p_sim_clock_gate.sv"
+  ]
+ },
+ "elaborate": {
+  "params": {
+   "COREV_PULP": 0,
+   "FPU": 0
+  },
+  "include_dirs": [
+   "rtl/include",
+   "rtl/bhv",
+   "rtl/include"
+  ]
+ },
+ "description": "CV32E40P RISC-V core (RV32IMC; OpenHW Group): Sutra's control core. It runs the C runtime that replays compiled programs on the engines through memory-mapped registers (soc_top.sv). Fetched by make cv32e40p into third_party/.",
+ "programming": {
+  "model": "isa",
+  "isa": "rv32imc",
+  "toolchain": {
+   "cc": "riscv64-unknown-elf-gcc",
+   "flags": [
+    "-march=rv32imc",
+    "-mabi=ilp32",
+    "-O2",
+    "-nostdlib",
+    "-ffreestanding"
+   ],
+   "objcopy": "riscv64-unknown-elf-objcopy"
+  }
+ },
+ "core": {
+  "isa": "rv32imc",
+  "boot_addr": {
+   "strap": "boot_addr_i"
+  },
+  "irq": {
+   "protocol": "interrupt",
+   "lines": 32
+  },
+  "bus": {
+   "instr": "obi",
+   "data": "obi"
+  }
+ }
+}

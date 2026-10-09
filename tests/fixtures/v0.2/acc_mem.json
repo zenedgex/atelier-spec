@@ -1,0 +1,59 @@
+{
+ "standard": "atelier-block/0.1",
+ "name": "zenedgex.acc_mem",
+ "version": "1.0.0",
+ "owner": "ZenEdgeX",
+ "slot_class": "memory.accumulator",
+ "top": "acc_mem",
+ "description": "Accumulator memory: partial sums, one read and one write port.",
+ "parameters": {
+  "W": {
+   "rule": "C * AW"
+  },
+  "DEPTH": {
+   "rule": "rows"
+  },
+  "AB": {
+   "rule": "clog2(DEPTH) (derived)"
+  }
+ },
+ "port_groups": [
+  {
+   "name": "clk",
+   "protocol": "clock_reset",
+   "ports": {
+    "clk": "clk"
+   }
+  },
+  {
+   "name": "rd",
+   "protocol": "read_sync",
+   "ports": {
+    "re": "re",
+    "addr": "raddr",
+    "rdata": "rdata"
+   }
+  },
+  {
+   "name": "wr",
+   "protocol": "write_plain",
+   "ports": {
+    "we": "we",
+    "addr": "waddr",
+    "data": "wdata"
+   }
+  }
+ ],
+ "capabilities": [
+  {
+   "op": "store_rows",
+   "data": "int(AW) x C"
+  }
+ ],
+ "files": {
+  "rtl": [
+   "rtl/acc_mem.sv",
+   "rtl/sram.sv"
+  ]
+ }
+}
