@@ -67,6 +67,8 @@ A block is a directory with these files:
 
 ### 3.1 `block.json`
 
+The values in this example are illustrative.
+
 ```json
 {
   "standard": "atelier-block/1.0",
@@ -102,7 +104,7 @@ A block is a directory with these files:
   },
   "cost": {
     "area_um2": {"expr": "...", "evidence": "synthesis"},
-    "energy_pj": {"mac": {"value": 0.48, "evidence": "post-layout"}},
+    "energy_pj": {"mac": {"value": 0.5, "evidence": "estimate"}},
     "leakage_uw": {"expr": "...", "evidence": "estimate"}
   },
   "files": {"rtl": ["rtl/cim_macro.sv", "rtl/dimc_mem.sv", "rtl/gemm_dimc.sv"]},
