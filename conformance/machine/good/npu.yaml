@@ -1,5 +1,5 @@
-# NPU with separate tensor and vector units (R1.1). Draft format: atelier-machine/0.1.
-standard: atelier-machine/0.1
+# NPU with separate tensor and vector units (R1.1). Draft format: atelier-machine/0.2.
+standard: atelier-machine/0.2
 name: npu-edge-4e
 
 units:
@@ -16,7 +16,8 @@ units:
     control: command
   seq:   {class: control.sequencer, block: sequencer}
   core:  {class: control.core, block: cv32e40p, params: {BOOT_ADDR: 0x0000_0000}}
-  dma:   {class: movement.dma, block: dma_2d, params: {CHANNELS: 4}}
+  dma:   {class: movement.dma, block: dma, params: {CHANNELS: 4, WIDTH: 64, DIMS: 4}}
+  disp:  {class: control.dispatcher, block: dispatch}
 
 clusters:
   engine:
@@ -25,7 +26,7 @@ clusters:
     wiring: sutra.engine/2
 
 memory:
-  - {name: l1_a, level: 1, kind: scratchpad, per: cluster, size: 128KiB, banks: 4, width: 256, ports: 1, block: spad_banked}
+  - {name: l1_a, level: 1, kind: scratchpad, per: cluster, size: 128KiB, banks: 4, width: 256, ports: 1, share: arbiter, block: spad_banked}
   - {name: l1_w, level: 1, kind: scratchpad, per: cluster, size: 128KiB, banks: 4, width: 256, ports: 1, block: spad_banked}
   - {name: acc,  level: 1, kind: scratchpad, per: cluster, size: 32KiB,  banks: 2, width: 1024, block: acc_mem}
   - {name: l2,   level: 2, kind: scratchpad, per: chip, size: 2MiB, banks: 16, width: 512, ports: 4, block: sram_1rw}
@@ -42,6 +43,9 @@ interconnect:
   slaves: [l2, engine.*.regs, dram]
 
 control: {model: microcontroller, core: core, os: none}
+
+# spec 16: the core starts the dispatcher; queues: tensor, vec, and the DMA's 4 channels
+dispatch: {by: disp, tokens: 32, depth: 16}
 
 address_map:
   boot_rom:   {base: 0x0000_0000, size: 64KiB}

@@ -92,3 +92,38 @@ def test_command_set_has_no_count_limit():
          "top": "t", "parameters": [], "port_groups": [], "files": {"rtl": []},
          "programming": {"model": "command", "word": 64, "doorbell": {}, "completion": {}, "commands": cmds}}
     assert block.errors(block.check(s)) == []
+
+
+def test_queues_and_spaces_follow_the_description():
+    """Spec 16: a queue per command unit and per DMA channel, in a fixed order; a launch queue for an
+    ISA core, none for its coprocessor or the dispatcher; spaces are the memories then the streams."""
+    m = {"standard": "atelier-machine/0.2", "name": "q",
+         "units": {"t": {"class": "compute.tensor", "control": "command"},
+                   "mx": {"class": "compute.tensor", "control": "isa"},
+                   "sm": {"class": "compute.simt", "control": "isa"},
+                   "d": {"class": "movement.dma", "params": {"CHANNELS": 3}},
+                   "q": {"class": "control.dispatcher"}, "c": {"class": "control.core"}},
+         "memory": [{"name": "a", "level": 1, "kind": "scratchpad", "per": "chip", "size": 1024},
+                    {"name": "m", "level": 2, "kind": "dram", "per": "chip"}],
+         "movement": {"dma": [{"engine": "d", "from": ["m", "s"], "to": "a"}],
+                      "streams": [{"name": "s", "unit": "t", "direction": "in"}]},
+         "control": {"model": "microcontroller", "core": "c"},
+         "dispatch": {"by": "q", "tokens": 8}}
+    assert machine.check(m) == []
+    assert [tuple(q) for q in machine.queues(m)] == [("t", "command", 0), ("sm", "launch", 0),
+                                                     ("d", "dma", 0), ("d", "dma", 1), ("d", "dma", 2)]
+    assert machine.spaces(m) == ["a", "m", "s"]
+    m["standard"] = "atelier-machine/0.1"                      # 0.1 still reads
+    assert machine.check(m) == []
+    del m["dispatch"]
+    assert machine.queues(m) == []
+
+
+def test_ten_thousand_queues():
+    """R15: no limit on queues or tokens."""
+    units = {f"e{i}": {"class": "compute.tensor", "control": "command"} for i in range(10_000)}
+    units |= {"q": {"class": "control.dispatcher"}, "c": {"class": "control.core"}}
+    m = {"standard": "atelier-machine/0.2", "name": "big", "units": units,
+         "memory": [{"name": "a", "level": 1, "kind": "scratchpad", "per": "chip", "size": 1024}],
+         "control": {"model": "microcontroller", "core": "c"}, "dispatch": {"by": "q", "tokens": 1 << 20}}
+    assert machine.check(m) == [] and len(machine.queues(m)) == 10_000

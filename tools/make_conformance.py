@@ -57,6 +57,16 @@ MACHINE_CASES = {
     "banks_do_not_divide": (lambda m: m["memory"][0].update(banks=3), "does not split into 3 banks"),
     "dma_to_unit": (lambda m: m["movement"]["dma"][0].update(to="tensor"), "to: 'tensor' is not a memory"),
     "unknown_class": (lambda m: m["units"]["vec"].update({"class": "compute.vectorz"}), "is not a slot class"),
+    # 0.2: dispatch, DMA engines, stream ports, port sharing (spec 16)
+    "dispatch_by_unknown": (lambda m: m["dispatch"].update(by="disp9"), "'disp9' is not a unit"),
+    "dispatch_by_a_tensor_unit": (lambda m: m["dispatch"].update(by="tensor"), "dispatch is a control.dispatcher"),
+    "dispatch_per_unknown": (lambda m: m["dispatch"].update(per="pod"), "'pod' is not chip or a cluster id"),
+    "queue_for_a_sequencer": (lambda m: m["dispatch"].update(queues={"seq": {"depth": 4}}), "'seq' takes no queue"),
+    "no_tokens": (lambda m: m["dispatch"].update(tokens=0), "less than the minimum of 1"),
+    "dma_engine_not_a_dma": (lambda m: m["movement"]["dma"][0].update(engine="vec"), "not a movement.dma"),
+    "stream_of_no_unit": (lambda m: m["movement"].update(streams=[{"name": "cam", "unit": "cam9", "direction": "in"}]),
+                          "unit 'cam9' is not a unit"),
+    "unknown_share": (lambda m: m["memory"][0].update(share="triple"), "'triple' is not one of"),
 }
 
 

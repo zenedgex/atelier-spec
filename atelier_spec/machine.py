@@ -1,4 +1,4 @@
-"""Machine descriptions (atelier-machine/0.1): load and check a whole chip.
+"""Machine descriptions (atelier-machine/0.2; 0.1 still reads): load and check a whole chip.
 
     from atelier_spec import machine
     m = machine.load("npu.yaml")
@@ -6,7 +6,16 @@
 
 `blocks` is optional. Without it, block names are not resolved and the checks that need a block's
 contract (its slot class) are skipped. Nothing here limits a count: units, clusters, memories,
-masters, regions and clock domains are lists of any length.
+masters, regions, clock domains, queues and tokens are lists or numbers of any size.
+
+    machine.queues(m)        # [Queue("tensor", "command", 0), Queue("dma", "dma", 0), ...]
+    machine.spaces(m)        # ["l1_a", ..., "dram", "out"]: what a DMA descriptor can address
+
+0.2 adds dispatch (spec 16): `dispatch` names who routes the program's records to queues (a
+control.dispatcher block, or a core running it as firmware) and how many tokens it holds; every
+command or ISA unit gets a queue and every DMA channel one (the DMA unit's CHANNELS); stream
+ports (`movement.streams`) are address-less spaces a DMA reads or writes; a memory's `share`
+says how a DMA and a unit share its port (arbiter, dual_port, bank_split).
 """
 
 from __future__ import annotations
@@ -15,15 +24,15 @@ import json
 import re
 from functools import cache
 from pathlib import Path
-from typing import Callable
+from typing import Callable, NamedTuple
 
 import yaml
 
 from atelier_spec.block import Problem
 from atelier_spec.protocols import CORE_CLASSES, PROTOCOLS, SLOT_CLASSES
 
-STANDARD = "atelier-machine/0.1"
-SCHEMA = Path(__file__).resolve().parent / "data" / "schemas" / "machine-0.1.schema.json"
+STANDARD = "atelier-machine/0.2"
+SCHEMA = Path(__file__).resolve().parent / "data" / "schemas" / "machine-0.2.schema.json"
 
 _UNITS = {"": 1, "B": 1, "KiB": 1 << 10, "MiB": 1 << 20, "GiB": 1 << 30, "TiB": 1 << 40,
           "KB": 10**3, "MB": 10**6, "GB": 10**9}
@@ -64,7 +73,8 @@ def check(m: dict, blocks: Callable[[str], dict | None] | None = None) -> list[P
     out += _check_units(m, blocks)
     out += _check_clusters(m, ids)
     out += _check_memory(m, ids)
-    out += _check_movement(m, ids)
+    out += _check_movement(m, ids, blocks)
+    out += _check_dispatch(m, ids, blocks)
     out += _check_interconnect(m, ids)
     out += _check_control(m, blocks)
     out += _check_address_map(m)
@@ -74,13 +84,15 @@ def check(m: dict, blocks: Callable[[str], dict | None] | None = None) -> list[P
 
 
 class _Ids:
-    """Every id a machine defines, and what it is. Ids are unique across units, clusters, memories."""
+    """Every id a machine defines, and what it is. Ids are unique across units, clusters, memories
+    and stream ports."""
 
     def __init__(self, m: dict):
         self.problems: list[Problem] = []
         self.kind: dict[str, str] = {}
         for kind, names in (("unit", m.get("units", {})), ("cluster", m.get("clusters", {})),
-                            ("memory", [x["name"] for x in m.get("memory", [])])):
+                            ("memory", [x["name"] for x in m.get("memory", [])]),
+                            ("stream", [x["name"] for x in m.get("movement", {}).get("streams", [])])):
             for n in names:
                 if n in self.kind:
                     self.problems.append(Problem("error", f"{kind}:{n}", f"id also used by a {self.kind[n]}"))
@@ -153,20 +165,95 @@ def _check_memory(m: dict, ids: _Ids) -> list[Problem]:
     return out
 
 
-def _check_movement(m: dict, ids: _Ids) -> list[Problem]:
+def _ends(d: dict, end: str) -> list[str]:
+    return d.get(end, []) if isinstance(d.get(end), list) else [d.get(end)]
+
+
+def _check_movement(m: dict, ids: _Ids, blocks) -> list[Problem]:
     out = []
-    for i, d in enumerate(m.get("movement", {}).get("dma", [])):
+    mv = m.get("movement", {})
+    for i, d in enumerate(mv.get("dma", [])):
         where = f"movement.dma[{i}]"
         if ids.kind.get(d.get("engine")) != "unit":
             out.append(Problem("error", where, f"engine {d.get('engine')!r} is not a unit"))
+        elif (cls := _unit_class(m["units"][d["engine"]], blocks)) not in (None, "movement.dma"):
+            out.append(Problem("error", where, f"engine {d['engine']!r} is a {cls}, not a movement.dma"))
         for end in ("from", "to"):
-            for x in d.get(end, []) if isinstance(d.get(end), list) else [d.get(end)]:
-                if ids.kind.get(x) != "memory":
-                    out.append(Problem("error", where, f"{end}: {x!r} is not a memory"))
-    for i, b in enumerate(m.get("movement", {}).get("bridges", [])):
+            for x in _ends(d, end):
+                if ids.kind.get(x) not in ("memory", "stream"):
+                    out.append(Problem("error", where, f"{end}: {x!r} is not a memory"
+                                                       f"{' or a stream port' if 'streams' in mv else ''}"))
+    for s in mv.get("streams", []):
+        if ids.kind.get(s["unit"]) != "unit":
+            out.append(Problem("error", f"movement.streams.{s['name']}", f"unit {s['unit']!r} is not a unit"))
+    reached = {x for d in mv.get("dma", []) for end in ("from", "to") for x in _ends(d, end)}
+    for mem in m.get("memory", []):
+        if "share" in mem and mem["name"] not in reached:
+            out.append(Problem("warning", f"memory.{mem['name']}", "share is set, but no DMA reaches it"))
+    for i, b in enumerate(mv.get("bridges", [])):
         for end in ("from_bus", "to_bus"):
             if b.get(end) not in PROTOCOLS:
                 out.append(Problem("error", f"movement.bridges[{i}]", f"{end}: {b.get(end)!r} is not a protocol"))
+    return out
+
+
+class Queue(NamedTuple):
+    """A worker's queue: the unit, what it takes (command, launch, dma) and, for a DMA, the channel."""
+    unit: str
+    kind: str
+    channel: int = 0
+
+
+def _dma_units(m: dict) -> list[str]:
+    return list(dict.fromkeys(d["engine"] for d in m.get("movement", {}).get("dma", [])
+                              if d.get("engine") in m["units"]))
+
+
+def queues(m: dict) -> list[Queue]:
+    """Every queue of a machine with `dispatch`, in a fixed order (units as listed, then each DMA's
+    channels): the queue index a program image's records use. Per cluster instance when dispatch is
+    per cluster. `dispatch.queues` only sets depths; it does not add or remove workers.
+
+    A command unit takes commands; an ISA unit that runs its own kernels (a core class: an SM, a DSP
+    core) takes launches; an ISA unit issued by another core's instructions (a tensor core, a DSP's
+    matrix unit) is a coprocessor and has no queue. The dispatcher itself has none."""
+    if "dispatch" not in m:
+        return []
+    dmas = _dma_units(m)
+    out = [Queue(uid, "command" if u.get("control") == "command" else "launch")
+           for uid, u in m["units"].items() if uid not in dmas and uid != m["dispatch"]["by"]
+           and (u.get("control") == "command" or (u.get("control") == "isa" and u.get("class") in CORE_CLASSES))]
+    for uid in dmas:
+        out += [Queue(uid, "dma", c) for c in range(int(m["units"][uid].get("params", {}).get("CHANNELS", 1)))]
+    return out
+
+
+def spaces(m: dict) -> list[str]:
+    """What a DMA descriptor addresses, by index: the memories in order, then the stream ports."""
+    return [x["name"] for x in m.get("memory", [])] + [s["name"] for s in m.get("movement", {}).get("streams", [])]
+
+
+def _check_dispatch(m: dict, ids: _Ids, blocks) -> list[Problem]:
+    d = m.get("dispatch")
+    if d is None:
+        return []
+    out = []
+    by = m["units"].get(d["by"])
+    if by is None:
+        out.append(Problem("error", "dispatch.by", f"{d['by']!r} is not a unit"))
+    elif (cls := _unit_class(by, blocks)) is not None and cls != "control.dispatcher" and cls not in CORE_CLASSES:
+        out.append(Problem("error", "dispatch.by", f"{d['by']!r} is a {cls}; dispatch is a control.dispatcher "
+                                                   f"or a core running it ({sorted(CORE_CLASSES)})"))
+    per = d.get("per", "chip")
+    if per != "chip" and ids.kind.get(per) != "cluster":
+        out.append(Problem("error", "dispatch.per", f"{per!r} is not chip or a cluster id"))
+    takes = {q.unit for q in queues(m)}
+    for uid in d.get("queues", {}):
+        if uid not in takes:
+            out.append(Problem("error", f"dispatch.queues.{uid}", f"{uid!r} takes no queue: not a command or "
+                                                                  f"ISA unit, nor a DMA engine"))
+    if not takes:
+        out.append(Problem("warning", "dispatch", "no unit takes a queue"))
     return out
 
 

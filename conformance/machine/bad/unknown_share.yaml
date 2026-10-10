@@ -1,4 +1,4 @@
-# expect: 'l3' names nothing
+# expect: 'triple' is not one of
 standard: atelier-machine/0.2
 name: npu-edge-4e
 units:
@@ -66,7 +66,7 @@ memory:
   banks: 4
   width: 256
   ports: 1
-  share: arbiter
+  share: triple
   block: spad_banked
 - name: l1_w
   level: 1
@@ -122,7 +122,6 @@ interconnect:
   - l2
   - engine.*.regs
   - dram
-  - l3
 control:
   model: microcontroller
   core: core

@@ -1,4 +1,4 @@
-# expect: 'l3' names nothing
+# expect: not a movement.dma
 standard: atelier-machine/0.2
 name: npu-edge-4e
 units:
@@ -103,7 +103,7 @@ memory:
   block: dram_ctrl_ext
 movement:
   dma:
-  - engine: dma
+  - engine: vec
     from: dram
     to: l2
   - engine: dma
@@ -122,7 +122,6 @@ interconnect:
   - l2
   - engine.*.regs
   - dram
-  - l3
 control:
   model: microcontroller
   core: core

@@ -71,6 +71,7 @@ SLOT_CLASSES: dict[str, str] = {
     "vector.row": "Row reductions (norm, softmax)",
     "control.core": "Control core",
     "control.sequencer": "Sequencer",
+    "control.dispatcher": "Dispatcher (queues and tokens)",
     "control.irq": "Interrupt controller",
     "movement.dma": "DMA",
     "movement.bridge": "Bus bridge",

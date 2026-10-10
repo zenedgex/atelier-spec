@@ -1,5 +1,5 @@
 # expect: space.memory.l3.size
-standard: atelier-machine/0.1
+standard: atelier-machine/0.2
 name: npu-edge-4e
 units:
   tensor:
@@ -38,9 +38,14 @@ units:
       BOOT_ADDR: 0
   dma:
     class: movement.dma
-    block: dma_2d
+    block: dma
     params:
       CHANNELS: 4
+      WIDTH: 64
+      DIMS: 4
+  disp:
+    class: control.dispatcher
+    block: dispatch
 clusters:
   engine:
     count: 4
@@ -61,6 +66,7 @@ memory:
   banks: 4
   width: 256
   ports: 1
+  share: arbiter
   block: spad_banked
 - name: l1_w
   level: 1
@@ -120,6 +126,10 @@ control:
   model: microcontroller
   core: core
   os: none
+dispatch:
+  by: disp
+  tokens: 32
+  depth: 16
 address_map:
   boot_rom:
     base: 0

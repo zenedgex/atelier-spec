@@ -1,6 +1,6 @@
 # DSP: VLIW scalar core with a wide vector unit and a matrix unit (R1.3), Hexagon-style.
-# Draft format: atelier-machine/0.1. The DSP core is the customer's; the matrix unit can be ours.
-standard: atelier-machine/0.1
+# Draft format: atelier-machine/0.2. The DSP core is the customer's; the matrix unit can be ours.
+standard: atelier-machine/0.2
 name: dsp-vx-mx
 
 units:
@@ -30,7 +30,7 @@ memory:
   - {name: dram, level: 3, kind: dram, per: chip, type: lpddr4x, bandwidth: 17GB/s}
 
 movement:
-  dma: [{engine: dma, from: dram, to: tcm}]
+  dma: [{engine: dma, from: dram, to: tcm}, {engine: dma, from: tcm, to: dram}]
 
 interconnect:
   topology: bus
@@ -40,6 +40,10 @@ interconnect:
   slaves: [tcm, l2, dram]
 
 control: {model: computing, core: dsp, os: rtos}
+
+# spec 16: the DSP core dispatches from its own kernels (control model d); queues: the DMA's 2
+# channels (the matrix unit is the DSP's coprocessor)
+dispatch: {by: dsp, tokens: 32, depth: 8}
 
 clocks:
   dsp: {freq: 1GHz, units: [dsp, mx, tcm]}

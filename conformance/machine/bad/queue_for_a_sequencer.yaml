@@ -1,4 +1,4 @@
-# expect: 'l3' names nothing
+# expect: 'seq' takes no queue
 standard: atelier-machine/0.2
 name: npu-edge-4e
 units:
@@ -122,7 +122,6 @@ interconnect:
   - l2
   - engine.*.regs
   - dram
-  - l3
 control:
   model: microcontroller
   core: core
@@ -131,6 +130,9 @@ dispatch:
   by: disp
   tokens: 32
   depth: 16
+  queues:
+    seq:
+      depth: 4
 address_map:
   boot_rom:
     base: 0

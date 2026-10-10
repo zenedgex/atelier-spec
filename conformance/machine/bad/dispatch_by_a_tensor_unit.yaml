@@ -1,4 +1,4 @@
-# expect: 'l3' names nothing
+# expect: dispatch is a control.dispatcher
 standard: atelier-machine/0.2
 name: npu-edge-4e
 units:
@@ -122,13 +122,12 @@ interconnect:
   - l2
   - engine.*.regs
   - dram
-  - l3
 control:
   model: microcontroller
   core: core
   os: none
 dispatch:
-  by: disp
+  by: tensor
   tokens: 32
   depth: 16
 address_map:

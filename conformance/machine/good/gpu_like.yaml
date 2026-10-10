@@ -1,7 +1,7 @@
-# GPU-like chip: clusters of SIMT lanes with tensor cores (R1.2). Draft format: atelier-machine/0.1.
+# GPU-like chip: clusters of SIMT lanes with tensor cores (R1.2). Draft format: atelier-machine/0.2.
 # The SM is the customer's block; we size it, give it memory, integrate it, and compile kernels for it
 # through the customer's toolchain.
-standard: atelier-machine/0.1
+standard: atelier-machine/0.2
 name: gpu-like-8sm
 
 units:
@@ -42,7 +42,14 @@ interconnect:
   masters: [sm_cluster.*, cp, dma]
   slaves: [l2]
 
+movement:
+  dma: [{engine: dma, from: dram, to: smem}, {engine: dma, from: smem, to: dram}]
+
 control: {model: application, core: cp, os: linux}
+
+# spec 16: the command processor dispatches in firmware; queues: a launch queue per SM (the tensor
+# core is the SM's coprocessor, no queue) and the DMA's 8 channels
+dispatch: {by: cp, per: sm_cluster, tokens: 256, depth: 64}
 
 clocks:
   sm: {freq: 1.2GHz, units: [sm_cluster]}
