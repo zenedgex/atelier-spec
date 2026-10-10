@@ -231,6 +231,8 @@ def _check_programming(spec: dict, params: set[str]) -> list[Problem]:
                                "a block's own op needs a namespace, e.g. acme.fft256"))
         elif "reference" not in extra[name]:
             out.append(Problem("error", f"programming.ops[{name}]", "a new op needs a reference"))
+    if "registers" in prog:
+        out += _check_registers(prog)
     if model == "command":
         out += _check_commands(prog, params, extra)
     elif model == "isa":
@@ -239,6 +241,42 @@ def _check_programming(spec: dict, params: set[str]) -> list[Problem]:
         for k in ("commands", "intrinsics", "microkernels", "toolchain"):
             if k in prog:
                 out.append(Problem("error", f"programming.{k}", f"not used with model {model!r}"))
+    return out
+
+
+def _check_registers(prog: dict) -> list[Problem]:
+    """Names once, fields inside the word without overlap, lanes dividing their bits, and no two
+    registers (arrays included) at one address."""
+    out: list[Problem] = []
+    word = prog.get("word", 64)
+    regs = prog["registers"]
+    names = [r["name"] for r in regs]
+    for v in {v for v in names if names.count(v) > 1}:
+        out.append(Problem("error", "programming.registers", f"name {v!r} used twice"))
+    taken: dict[int, str] = {}
+    for r in regs:
+        where = f"programming.registers[{r['name']}]"
+        used: dict[int, str] = {}
+        for f in r["fields"]:
+            lo, hi = f["bits"]
+            if lo > hi or hi >= word:
+                out.append(Problem("error", f"{where}.fields[{f['name']}]", f"bits [{lo}, {hi}] outside a {word}-bit word"))
+                continue
+            if (hi - lo + 1) % f.get("lanes", 1):
+                out.append(Problem("error", f"{where}.fields[{f['name']}]", f"{f['lanes']} lanes do not divide bits [{lo}, {hi}]"))
+            if f["kind"] == "flag" and hi != lo:
+                out.append(Problem("error", f"{where}.fields[{f['name']}]", "a flag is one bit"))
+            for b in range(lo, hi + 1):
+                if b in used:
+                    out.append(Problem("error", f"{where}.fields[{f['name']}]", f"bit {b} is also in {used[b]}"))
+                    break
+                used[b] = f["name"]
+        for i in range(r.get("count", 1)):
+            a = r["addr"] + i * r.get("stride", 1)
+            if a in taken:
+                out.append(Problem("error", where, f"address {a:#x} is also {taken[a]}'s"))
+                break
+            taken[a] = r["name"]
     return out
 
 

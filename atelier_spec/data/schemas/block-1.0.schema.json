@@ -84,6 +84,7 @@
         "completion": {"type": "object"},
         "word": {"type": "integer", "minimum": 8},
         "commands": {"type": "array", "items": {"$ref": "#/$defs/command"}},
+        "registers": {"type": "array", "items": {"$ref": "#/$defs/register"}},
         "isa": {"type": "string"},
         "toolchain": {
           "type": "object",
@@ -103,6 +104,25 @@
                          "cycles": {"type": ["string", "number"]}, "evidence": {"type": "string"}}}},
         "abi": {"type": "object"},
         "ops": {"type": "object", "description": "a customer's op set extension: name -> spec"}
+      },
+      "additionalProperties": false
+    },
+    "register": {
+      "type": "object",
+      "required": ["name", "addr", "fields"],
+      "properties": {
+        "name": {"type": "string"},
+        "addr": {"type": "integer", "minimum": 0},
+        "count": {"type": "integer", "minimum": 1, "description": "an array of registers: index i at addr + i * stride"},
+        "stride": {"type": "integer", "minimum": 1},
+        "about": {"type": "string"},
+        "fields": {"type": "array", "items": {
+          "type": "object", "required": ["name", "bits", "kind"],
+          "properties": {"name": {"type": "string"},
+                         "bits": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 2, "maxItems": 2},
+                         "kind": {"enum": ["uint", "int", "flag"]},
+                         "lanes": {"type": "integer", "minimum": 1, "description": "lanes of this width, side by side from bits[0]"}},
+          "additionalProperties": false}}
       },
       "additionalProperties": false
     },
