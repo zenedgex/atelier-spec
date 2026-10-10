@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
-import yaml
 
 from atelier_spec import evidence, expr, ops
 from atelier_spec.protocols import (CORE_CLASSES, MIGRATE_CLASS, PROTOCOLS, ROLES, SLOT_CLASSES,
@@ -51,7 +50,10 @@ def errors(problems: list[Problem]) -> list[Problem]:
 def read(path: str | Path) -> dict:
     p = Path(path)
     text = p.read_text()
-    return json.loads(text) if p.suffix == ".json" else yaml.safe_load(text)
+    if p.suffix == ".json":
+        return json.loads(text)
+    import yaml                                 # only for YAML files: the codecs run without it
+    return yaml.safe_load(text)
 
 
 def load(path: str | Path) -> dict:

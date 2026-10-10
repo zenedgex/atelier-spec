@@ -44,8 +44,15 @@ _p("ahb", "haddr htrans hwrite hrdata hready", "hsize hburst hprot hwdata hready
 _p("apb", "paddr psel penable pwrite prdata pready", "pwdata pstrb pprot pslverr")
 _p("axi_stream", "tvalid tready", "tdata tstrb tkeep tlast tid tdest tuser")
 # new in 1.0: generic memory and movement
-_p("mem_req", "req gnt addr rvalid", "we wdata be rdata id rid")
+_p("mem_req", "req gnt addr rvalid", "we wdata be mask rdata id rid")
 _p("dma_desc", "valid ready desc", "done")
+# new in 1.0: dispatch (atelier-platform spec 16; standards/image.md)
+_p("record", "valid ready data", "last idle err")          # a queue's records, word by word
+_p("burst_read", "req_valid req_ready req_addr rvalid rdata")  # fixed-length reads answered in order
+_p("job", "start base", "active err records")               # start a dispatcher on a record stream
+_p("tokens", "data")                                         # the dispatcher's token values (observe)
+_p("observe", "data")                                        # counters a test or a profiler reads
+_p("sram_port", "req addr", "we mask wdata rvalid rdata")   # always ready: data the cycle after
 
 ROLES = {"source", "sink", "master", "slave"}
 
@@ -64,7 +71,7 @@ SLOT_CLASSES: dict[str, str] = {
     "memory.accumulator": "Accumulator memory",
     "memory.activation": "Activation memory",
     "memory.sram": "System RAM",
-    "memory.l2": "Shared L2",
+    "memory.shared": "Shared SRAM",
     "memory.dram_ctrl": "DRAM controller",
     "vector.post_op": "Requantize (post-op)",
     "vector.elementwise": "Elementwise and activation",

@@ -1,5 +1,5 @@
 # CIM accelerator (R1.4): the Sutra CIM engine around a CIM macro, with spec 16's dispatch: per
-# engine a dispatcher and a DMA moving activation bands between ACT, the shared L2 and DRAM while
+# engine a dispatcher and a DMA moving activation bands between ACT, the shared SRAM and DRAM while
 # the engine computes. Swap `units.cim.block` for a customer macro.
 standard: atelier-machine/0.2
 name: sutra-cim-4e
@@ -31,7 +31,7 @@ memory:
   - {name: acc,    level: 1, kind: scratchpad, per: cluster, size: 8KiB, block: acc_mem}
   - {name: actmem, level: 1, kind: scratchpad, per: cluster, size: 512KiB, banks: 4, share: arbiter, block: spad_banked}
   - {name: ram,    level: 2, kind: scratchpad, per: chip, size: 256KiB, block: sram_1rw}
-  - {name: l2,     level: 2, kind: scratchpad, per: chip, size: 3MiB, banks: 8, width: 64, block: l2_mem}
+  - {name: shared,     level: 2, kind: scratchpad, per: chip, size: 3MiB, banks: 8, width: 64, block: shared_sram}
   - {name: dram,   level: 3, kind: dram, per: chip, type: lpddr4x, bandwidth: 17GB/s}
 
 movement:
@@ -39,9 +39,9 @@ movement:
     - {name: rows_out, unit: post, direction: out, note: "the engine's result rows"}
     - {name: sensor_in, unit: act, direction: in, note: "a camera feeding ACT directly"}
   dma:
-    - {engine: dma, from: dram, to: [actmem, l1_a, cmem, l2]}
-    - {engine: dma, from: [actmem, rows_out], to: [l2, dram]}
-    - {engine: dma, from: l2, to: actmem}
+    - {engine: dma, from: dram, to: [actmem, l1_a, cmem, shared]}
+    - {engine: dma, from: [actmem, rows_out], to: [shared, dram]}
+    - {engine: dma, from: shared, to: actmem}
 
 interconnect:
   topology: bus
@@ -62,4 +62,4 @@ space:
   units.cim.params.R: [32, 64]
   units.cim.params.IB: [1, 2, 4]
   clusters.engine.count: [1, 2, 4]
-  memory.l2.size: [1MiB, 2MiB, 3MiB]
+  memory.shared.size: [1MiB, 2MiB, 3MiB]

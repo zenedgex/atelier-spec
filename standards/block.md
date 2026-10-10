@@ -177,8 +177,14 @@ New in 1.0:
 | `ahb` | `haddr`, `htrans`, `hwrite`, `hrdata`, `hready` (+ `hsize`, `hburst`, `hprot`, `hwdata`, `hreadyout`, `hresp`, `hsel`, `hmastlock`) | as AMBA AHB |
 | `apb` | `paddr`, `psel`, `penable`, `pwrite`, `prdata`, `pready` (+ `pwdata`, `pstrb`, `pprot`, `pslverr`) | as AMBA APB |
 | `axi_stream` | `tvalid`, `tready` (+ `tdata`, `tstrb`, `tkeep`, `tlast`, `tid`, `tdest`, `tuser`) | as AMBA AXI4-Stream |
-| `mem_req` | `req`, `gnt`, `addr`, `rvalid` (+ `we`, `wdata`, `be`, `rdata`, `id`, `rid`) | a generic request/grant memory port; responses MAY return out of order when `id`/`rid` are present |
+| `mem_req` | `req`, `gnt`, `addr`, `rvalid` (+ `we`, `wdata`, `be`, `mask`, `rdata`, `id`, `rid`) | a generic request/grant memory port; responses MAY return out of order when `id`/`rid` are present |
 | `dma_desc` | `valid`, `ready`, `desc` (+ `done`) | DMA descriptors in order |
+| `record` | `valid`, `ready`, `data` (+ `last`, `idle`, `err`) | a queue's image/1 records, a 32-bit word a transfer, header first (`last` on a record's last word). The worker's `idle` is high only while every record it took is done; it MUST fall the cycle after the worker takes a record's first word (spec 16, standards/image.md) |
+| `burst_read` | `req_valid`, `req_ready`, `req_addr`, `rvalid`, `rdata` | a request for a fixed number of words (the block's `BURST`), answered in order, a word a cycle at most |
+| `job` | `start`, `base` (+ `active`, `err`, `records`) | `start` pulses with a record stream's byte address; `active` until the job is done |
+| `tokens` | `data` | a dispatcher's token values, token *t* at `[32t +: 32]`, for observation |
+| `observe` | `data` | counters (port grants, busy cycles) a test or a profiler reads; no effect on the block |
+| `sram_port` | `req`, `addr` (+ `we`, `mask`, `wdata`, `rvalid`, `rdata`) | always ready: a request is taken every cycle; a read's words come the cycle after (`rvalid`) |
 
 Roles `master`/`slave` are used with the buses; `source`/`sink` with streams. A block MAY use a
 protocol not listed only through a versioned addition to this table.
@@ -195,7 +201,7 @@ protocol not listed only through a versioned addition to this table.
 | compute | `compute.vliw` | a DSP core | buses, a core contract |
 | compute | `compute.engine` | a whole engine: a template composition used as one slot | the engine's command and data ports |
 | accelerator | `accelerator.op` | whole operators behind commands | `command` or a bus, memory ports |
-| memory | `memory.scratchpad`, `memory.cache`, `memory.tcm`, `memory.compute`, `memory.accumulator`, `memory.activation`, `memory.sram`, `memory.l2`, `memory.dram_ctrl` | storage at each level; `memory.compute` holds CIM weights | `read_sync`, `write_vr`, `write_plain`, `mem_req`, buses |
+| memory | `memory.scratchpad`, `memory.cache`, `memory.tcm`, `memory.compute`, `memory.accumulator`, `memory.activation`, `memory.sram`, `memory.shared`, `memory.dram_ctrl` | storage at each level; `memory.compute` holds CIM weights | `read_sync`, `write_vr`, `write_plain`, `mem_req`, buses |
 | vector | `vector.post_op`, `vector.elementwise`, `vector.row` | fixed-function units driven by a template | `row_pipe`, `config`, `command`, `start_done` |
 | control | `control.core`, `control.sequencer`, `control.irq` | runs the runtime; issues commands; collects interrupts | buses, `interrupt`, `debug`, `run_control`, `strap` |
 | movement | `movement.dma`, `movement.bridge`, `movement.interconnect`, `movement.noc` | moves data; converts buses; connects masters and slaves | `dma_desc`, buses, streams |
@@ -290,7 +296,7 @@ The tensor slot takes any `kind`; today's `accel_top` builds WS, OS and CIM (`DA
 
 **SoC v1** (today's `multi_top` and `soc_top`): `control.core` broadcasting one command stream to
 any number of Engine v1 instances (tested with 1, 2, 4 and 8); host writes per engine;
-`movement.dma` and `memory.l2` are planned slots.
+`movement.dma` and `memory.shared` are planned slots.
 
 Templates live in atelier-architectures, and are data plus SystemVerilog skeletons. The machine
 standard decides the counts.

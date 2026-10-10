@@ -13,7 +13,6 @@ import re
 from functools import cache
 from pathlib import Path
 
-import yaml
 
 OPSET = Path(__file__).resolve().parent / "data" / "opset-0.1.yaml"
 _NS = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_.]*$")      # a customer namespace: acme.fft256
@@ -21,6 +20,7 @@ _NS = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_.]*$")      # a customer names
 
 @cache
 def opset() -> dict:
+    import yaml
     return yaml.safe_load(OPSET.read_text())
 
 

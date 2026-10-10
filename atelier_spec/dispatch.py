@@ -145,6 +145,17 @@ def run(records: list[image.Record], queues: int, mem: Memory, workers: dict[int
     active = [False] * queues
     now, nxt, ended = 0, 0, False
 
+    logged = [0, 1024]                             # entries in the log; the size that triggers pruning
+
+    def prune():
+        """Drop the accesses every other queue already knows happened: they can never race (exact)."""
+        known = [min([vc[q][q2] for q in range(queues) if q != q2] or [0]) for q2 in range(queues)]
+        n = 0
+        for space in log:
+            log[space] = [e for e in log[space] if e[3] > known[e[2]]]
+            n += len(log[space])
+        logged[0], logged[1] = n, max(1024, 2 * n)
+
     def access(q, idx, space, a, b, wrote):
         mine = vc[q]
         for (a2, b2, q2, ep, w2, i2) in log.setdefault(space, []):
@@ -152,6 +163,9 @@ def run(records: list[image.Record], queues: int, mem: Memory, workers: dict[int
                 if check:
                     races.append(Race(space, (q2, i2, w2), (q, idx, wrote), (max(a, a2), min(b, b2))))
         log[space].append((a, b, q, mine[q], wrote, idx))
+        logged[0] += 1
+        if logged[0] > logged[1]:
+            prune()
 
     def dispatch_some():
         nonlocal nxt, ended

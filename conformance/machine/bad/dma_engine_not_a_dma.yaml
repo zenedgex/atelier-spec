@@ -85,7 +85,7 @@ memory:
   banks: 2
   width: 1024
   block: acc_mem
-- name: l2
+- name: shared
   level: 2
   kind: scratchpad
   per: chip
@@ -105,9 +105,9 @@ movement:
   dma:
   - engine: vec
     from: dram
-    to: l2
+    to: shared
   - engine: dma
-    from: l2
+    from: shared
     to:
     - l1_a
     - l1_w
@@ -119,7 +119,7 @@ interconnect:
   - core
   - dma
   slaves:
-  - l2
+  - shared
   - engine.*.regs
   - dram
 control:
@@ -134,7 +134,7 @@ address_map:
   boot_rom:
     base: 0
     size: 64KiB
-  l2:
+  shared:
     base: 268435456
     size: 2MiB
   engine_regs:
@@ -150,7 +150,7 @@ clocks:
     units:
     - core
     - dma
-    - l2
+    - shared
   engine:
     freq: 1GHz
     units:
@@ -164,7 +164,7 @@ space:
   - 16
   - 32
   - 64
-  memory.l2.size:
+  memory.shared.size:
   - 1MiB
   - 2MiB
   - 4MiB

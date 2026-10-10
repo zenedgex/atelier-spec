@@ -44,7 +44,7 @@ BLOCK_CASES = {
 }
 
 MACHINE_CASES = {
-    "address_overlap": (lambda m: m["address_map"]["l2"].update(base=0x8000), "overlaps"),
+    "address_overlap": (lambda m: m["address_map"]["shared"].update(base=0x8000), "overlaps"),
     "cluster_memory_outside_cluster": (lambda m: m["clusters"]["engine"]["contains"].remove("acc"),
                                        "per: cluster, but no cluster contains it"),
     "core_is_not_a_core": (lambda m: m["control"].update(core="dma"), "'dma' is a movement.dma"),

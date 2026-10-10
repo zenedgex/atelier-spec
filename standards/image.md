@@ -52,7 +52,7 @@ Every kind except END carries a queue field. Flags bit 0 is MULTI; the other bit
 | END | 0 | (no queue field) | the dispatcher: the job is done once every queue has drained |
 | CMD | 1 | the unit's command words (a 64-bit command: low, high) | a command; done when the unit reports it done |
 | CFG | 2 | address, then configuration data (the unit's word width, low first) | writes at address, address + 1, ... |
-| DMA | 3 | a descriptor (§4) | a copy; done when its last write is accepted |
+| DMA | 3 | a descriptor (§4) | a copy; done when its last write is accepted. A unit's own queue MAY take inline DMA records into that unit's private memories (its block declares which), run in order with its commands: data the unit's next commands need, with no token between them |
 | LAUNCH | 4 | kernel index, then argument words | a kernel launch on an ISA unit; done when the kernel returns |
 | WAIT | 5 | token, value | holds this queue until token ≥ value (modulo 2³²) |
 | SIGNAL | 6 | token | when every earlier record of this queue is done, adds 1 to the token |

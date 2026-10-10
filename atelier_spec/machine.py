@@ -26,7 +26,6 @@ from functools import cache
 from pathlib import Path
 from typing import Callable, NamedTuple
 
-import yaml
 
 from atelier_spec.block import Problem
 from atelier_spec.protocols import CORE_CLASSES, PROTOCOLS, SLOT_CLASSES
@@ -53,7 +52,10 @@ def size(v) -> int:
 
 def load(path: str | Path) -> dict:
     p = Path(path)
-    return json.loads(p.read_text()) if p.suffix == ".json" else yaml.safe_load(p.read_text())
+    if p.suffix == ".json":
+        return json.loads(p.read_text())
+    import yaml                                 # only for YAML files: the codecs run without it
+    return yaml.safe_load(p.read_text())
 
 
 @cache
