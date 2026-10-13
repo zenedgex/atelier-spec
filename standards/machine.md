@@ -23,7 +23,7 @@ It names blocks by their contracts (`standards/block.md`); it contains no RTL. T
 |---|---|---|
 | `standard` | yes | `atelier-machine/0.2` (or `/0.1`) |
 | `name` | yes | |
-| `units` | yes | id → `{class and/or block, params, capabilities, control: command \| isa \| none, core}` |
+| `units` | yes | id → `{class and/or block, params, capabilities, control: command \| isa \| none, core, timing}`; `timing`: the block's timing fields resolved for these params (block standard section 3.3), what the compiler's cost model reads |
 | `clusters` | no | id → `{count, contains: [unit and memory ids], wiring: template id}` |
 | `memory` | yes | a list of `{name, level, kind, per, size, banks, width, ports, share, ways, line, latency, energy, policy, type, bandwidth, block}` |
 | `movement` | no | `dma: [{engine, from, to}]` (routes), `streams: [{name, unit, direction, width}]`, `bridges: [{from_bus, to_bus}]` |

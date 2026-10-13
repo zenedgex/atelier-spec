@@ -137,6 +137,54 @@ def latency(name, shape, params) -> int                # REQUIRED: cycles, match
 and overflow. `latency` MUST be the formula the cycle model uses. A block MAY instead name an
 external golden model (C or Python) the customer already has, wrapped to this interface.
 
+### 3.3 Timing contract and the cost model
+
+The compiler chooses mappings and programs with a cost model (T0 per layer, the SoC model per
+program; atelier-compiler `cost/`). The cost model learns a block's timing only through this
+contract: no cost-model code names a block, as no compiler code does (section 5.3). A customer block
+is costed by the same code as Atelier's own.
+
+**Fields per slot class.** Each slot class fixes the timing fields its cost model uses. A block of
+that class MUST give every field, as a value, an expression or a table.
+
+| Slot class | Timing fields |
+|---|---|
+| `compute.tensor` | `tile_latency` (a tile request to its first input row), `row_interval` (cycles between input rows: the initiation interval), `result_latency` (the last input row to the last result row), `weight_row_cycles` (one weight row written), `read_ports` (scratchpad reads a cycle) |
+| `vector.post_op`, `vector.elementwise`, `vector.row` | `latency` (pipeline depth), `row_interval` |
+| `memory.*` | `read_latency`, `ports`, `banks` (section 5.4) |
+| `movement.dma` | `setup_cycles` (a descriptor to its first request), `bytes_per_cycle` |
+| `accelerator.op` | `cycles` of each command (section 5.3) |
+| `isa` blocks | `cycles` of each micro-kernel (section 5.3) |
+
+**Expressions:**
+- Operators: `+ - * /` (integers; `/` rounds up), `min`, `max`, `clog2` and parentheses.
+- Names: the parameters, and the shape names a field allows (`M`, `K`, `N` for a tile).
+- A text such as `"see model.py"` is not an expression and is invalid for these fields.
+
+**Tables**, for timing no expression fits:
+- Form: `{"table": "timing/<field>.csv", "keys": ["K", "N"], "evidence": "rtl-sim"}`. Each row gives the key values and the cycles.
+- The cost model interpolates linearly between rows. It refuses a point outside the table's range rather than extrapolate.
+
+**Resolved into the machine:**
+- atelier-gen evaluates every field for the composition's parameters and writes the numbers (or a table's rows) into the machine description (`units.<id>.timing`, machine standard section 1).
+- The compiler reads only that. A customer's Python never runs in the compiler.
+
+**Data-dependent timing** (a latency that depends on values, not shapes):
+- No field holds it exactly. The block gives a worst case marked `"bound": "worst"`, and the cost model treats it as one.
+- Exact numbers need the cycle-level `step()` model (section 3.2).
+
+**Agreement and evidence:**
+- `latency()` in `model.py` MUST agree with these fields; L2 compares both with the RTL (section 6).
+- Every field carries an evidence label (section 8).
+- Atelier's library blocks declare their timing the same way: the constants built into today's cost model become those blocks' contracts.
+
+**Status (2026-10-13): planned.**
+- Today the cost model has the library engines' timing built in. It reads one number from a block: a vendor CIM macro's extra COMPUTE cycles (`cim_offset`, from its tile and result latencies).
+- Steps:
+  1. the library blocks' timing written as contracts, and the cost model reading them from the machine, with cycles unchanged for every library design;
+  2. the L2 sweep (section 6);
+  3. the per-design check (section 6).
+
 ## 4. Port protocols
 
 All blocks use one clock `clk` (rising edge) and an active-low reset `rst_n`. Control state resets
@@ -279,6 +327,16 @@ intrinsics or ops. Widths derive from parameters.
 
 A composition is only as conformant as its lowest block. Atelier MUST show the level of each block
 next to any result that depends on it.
+
+**The L2 sweep** (atelier-blocks; it runs where the RTL lives):
+- Stimulus is generated from the port protocols (section 4).
+- The block runs at the values its `parameters` allow (a sample when there are many) and over shapes.
+- Each timing field of section 3.3 is measured, then compared with its value, expression or table. A field the contract does not give yet is written in from the measurement, with evidence `rtl-sim`.
+- A field that is not exact states its bound (`"tolerance"`, in cycles or percent).
+
+**The per-design check:**
+- For a chosen composition, a few layers run in RTL and are compared with the SoC model's cycles.
+- A difference beyond the stated bound flags the blocks on that path. The bound is 2% for library designs today.
 
 ## 7. Templates
 
