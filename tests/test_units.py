@@ -62,7 +62,9 @@ def test_lut_and_alias():
     assert ops.reference("exp_lut")(np.array([-128, 0, 127]), table).tolist() == [-128, 0, 127]
 
 
-def test_pending_reference_says_so():
+def test_pending_reference_says_so(monkeypatch):
+    entry = dict(ops.opset()["ops"]["softmax"], reference="pending")
+    monkeypatch.setitem(ops.opset()["ops"], "softmax", entry)
     with pytest.raises(NotImplementedError, match="pending"):
         ops.reference("softmax")
 

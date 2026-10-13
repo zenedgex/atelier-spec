@@ -22,12 +22,17 @@ The op set is the shared vocabulary of the compiler, the blocks and verification
 
 | Status | Ops |
 |---|---|
-| **Written** (`reference: ref`) | matmul, add, sub, mul, max, min, relu, requant, lut (exp_lut), transpose, concat, gather |
-| **Pending** | conv2d, silu, gelu, softmax, rmsnorm, rope, maxpool, upsample, im2col (from Sutra's `isa.py`); layernorm |
+| **Written** (`reference: ref`) | every op: matmul, conv2d, add, sub, mul, max, min, relu, requant, lut (exp_lut), silu, gelu, softmax, rmsnorm, layernorm, rope, transpose, concat, gather, maxpool, upsample, im2col |
+| **Pending** | none (2026-10-13) |
 
 A block MAY declare a pending op. Its L1 check waits for the reference.
 `ops.reference(name)` raises `NotImplementedError` for a pending op, so nothing silently passes.
 
-The references for softmax, rmsnorm and the table activations come from Sutra's `isa.py`
-(`row_softmax`, `row_norm`, the post-op tables). They will match today's RTL bit for bit, and that
-match is their acceptance test.
+The references for softmax and rmsnorm are the row unit's: its tables (`RSQRT`, `EXP`, `RECIP`) are
+constants of this standard, and the references equal Sutra's `isa.row_softmax` and `isa.row_norm` bit for
+bit (`tests/test_ops_ref.py`). Layer norm uses the same tables on rows centred on their mean; it defines
+what a unit implementing it must match.
+
+SiLU and GELU are tables the model's quantization fixes: `silu_table` and `gelu_table` build them from the
+input and output scales and zero points (QDQ, rounding half to even). Convolution pads with `pad_value`, the
+input's zero point; pooling pads with the format's minimum, so the padding never wins.

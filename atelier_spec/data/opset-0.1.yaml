@@ -7,8 +7,10 @@ ops:
   # --- linear algebra
   matmul:     {version: 1, in: [a, b], out: [y], attrs: {}, reference: ref,
                semantics: "y[m,n] = sum_k a[m,k]*b[k,n], exact in the output format (no overflow allowed)"}
-  conv2d:     {version: 1, in: [x, w], out: [y], attrs: {kernel: "[kh,kw]", stride: "[sh,sw]", pad: "[t,l,b,r]", groups: int},
-               reference: pending, semantics: "NHWC x, HWIO w, exact sums; groups == channels is depthwise"}
+  conv2d:     {version: 1, in: [x, w], out: [y],
+               attrs: {kernel: "[kh,kw]", stride: "[sh,sw]", pad: "[t,l,b,r]", groups: int, pad_value: "int, default 0"},
+               reference: ref, semantics: "NHWC x, HWIO w, exact sums (an overflow is refused, as matmul); the padding
+                 holds pad_value (a quantized input's zero point); groups == channels is depthwise"}
   # --- elementwise, exact into the output format, saturating
   add:        {version: 1, in: [a, b], out: [y], attrs: {}, reference: ref, semantics: "y = sat(a + b)"}
   sub:        {version: 1, in: [a, b], out: [y], attrs: {}, reference: ref, semantics: "y = sat(a - b)"}
@@ -24,23 +26,28 @@ ops:
                reference: ref, semantics: "y = table[x - min(format)]"}
   exp_lut:    {version: 1, in: [x], out: [y], attrs: {table: name}, reference: ref, alias_of: lut,
                semantics: "lut with an exponential table"}
-  silu:       {version: 1, in: [x], out: [y], attrs: {table: name}, reference: pending}
-  gelu:       {version: 1, in: [x], out: [y], attrs: {table: name}, reference: pending}
+  silu:       {version: 1, in: [x], out: [y], attrs: {table: name}, reference: ref,
+               semantics: "lut with the model's table (ops_ref.silu_table: QDQ in and out, rounding half to even)"}
+  gelu:       {version: 1, in: [x], out: [y], attrs: {table: name}, reference: ref,
+               semantics: "lut with the model's table (ops_ref.gelu_table: erf or tanh, as the model's op)"}
   # --- reductions along the last axis
-  softmax:    {version: 1, in: [x], out: [y], attrs: {shift: int}, reference: pending,
-               semantics: "from Sutra's isa.row_softmax (tables, Q7 output)"}
-  rmsnorm:    {version: 1, in: [x, g], out: [y], attrs: {}, reference: pending,
-               semantics: "from Sutra's isa.row_norm (tables)"}
-  layernorm:  {version: 1, in: [x, g, b], out: [y], attrs: {}, reference: pending}
-  rope:       {version: 1, in: [x, pos], out: [y], attrs: {theta: number}, reference: pending}
+  softmax:    {version: 1, in: [x], out: [y], attrs: {shift: "int >= 0, default 0"}, reference: ref,
+               semantics: "the row unit's SOFTMAX: e = EXP[min((max - x) >> shift, 255)], Q7 output (uint7)"}
+  rmsnorm:    {version: 1, in: [x, g], out: [y], attrs: {}, reference: ref,
+               semantics: "the row unit's NORM: y = x g / (2 sqrt(mean x^2)) through the RSQRT table"}
+  layernorm:  {version: 1, in: [x, g, b], out: [y], attrs: {}, reference: ref,
+               semantics: "rows centred on their mean, then the NORM's tables, then + b"}
+  rope:       {version: 1, in: [x, pos], out: [y], attrs: {theta: "number, default 10000", layout: "halves | interleaved"},
+               reference: ref, semantics: "pairs rotated by Q14 cos and sin tables (rounded half to even), the products
+                 shifted by 14 rounding half up"}
   # --- data movement
   transpose:  {version: 1, in: [x], out: [y], attrs: {perm: "list of axes"}, reference: ref}
   concat:     {version: 1, in: [xs], out: [y], attrs: {axis: int}, reference: ref}
   gather:     {version: 1, in: [x, idx], out: [y], attrs: {axis: int}, reference: ref}
   maxpool:    {version: 1, in: [x], out: [y], attrs: {kernel: "[kh,kw]", stride: "[sh,sw]", pad: "[t,l,b,r]"},
-               reference: pending}
-  upsample:   {version: 1, in: [x], out: [y], attrs: {scale: int, mode: nearest}, reference: pending}
+               reference: ref}
+  upsample:   {version: 1, in: [x], out: [y], attrs: {scale: int, mode: nearest}, reference: ref}
   im2col:     {version: 1, in: [x], out: [y], attrs: {kernel: "[kh,kw]", stride: "[sh,sw]", pad: "[t,l,b,r]"},
-               reference: pending}
+               reference: ref}
 
 formats: [int4, int8, int16, int32, int48, int64, uint7, uint8]
