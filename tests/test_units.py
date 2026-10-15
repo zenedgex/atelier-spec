@@ -129,3 +129,56 @@ def test_ten_thousand_queues():
          "memory": [{"name": "a", "level": 1, "kind": "scratchpad", "per": "chip", "size": 1024}],
          "control": {"model": "microcontroller", "core": "c"}, "dispatch": {"by": "q", "tokens": 1 << 20}}
     assert machine.check(m) == [] and len(machine.queues(m)) == 10_000
+
+
+def _foreign(**extra) -> dict:
+    """A small 0.3 machine: a host core and a register-programmed unit."""
+    m = {"standard": "atelier-machine/0.3", "name": "f",
+         "units": {"host": {"class": "control.core", "control": "isa"},
+                   "conv": {"class": "compute.tensor", "control": "registers", "contract": "c.json",
+                            "registers": {"groups": 2, "kick": "D_OP_ENABLE", "completion": "interrupt"},
+                            "formats": ["int8", "fp16"]}},
+         "memory": [{"name": "buf", "level": 1, "kind": "scratchpad", "per": "chip", "size": 4096}],
+         "control": {"model": "application", "core": "host", "os": "linux"}}
+    return m | extra
+
+
+def test_0_3_fields_need_a_0_3_file():
+    """Spec 20: every 0.3 field in a file that says 0.2 is an error naming the field; 0.2 files without
+    them check exactly as before."""
+    m = _foreign(toolchain={"simulator": {"command": "sim"}}, source={"repo": "r"})
+    assert machine.check(m) == []
+    m["standard"] = "atelier-machine/0.2"
+    errs = {p.message.split(" is new")[0] for p in block.errors(machine.check(m))}
+    assert errs == {"toolchain", "source", "units.conv.contract", "units.conv.formats", "units.conv.registers",
+                    "units.conv.control: registers"}
+
+
+def test_registers_units_take_no_queue():
+    """A register-programmed unit is written by a core, not dispatched."""
+    m = _foreign(dispatch={"by": "host", "tokens": 4})
+    m["units"]["vec"] = {"class": "compute.vector", "control": "command", "contract": "v.json"}
+    assert machine.check(m) == [] and machine.queues(m) == [machine.Queue("vec", "command", 0)]
+
+
+def test_coprocessor_warns_without_a_coprocessor_unit():
+    m = _foreign(control={"model": "coprocessor", "core": "host", "coherence": "io",
+                          "translation": {"kind": "tlb", "entries": 4}})
+    probs = machine.check(m)
+    assert block.errors(probs) == [] and any(p.where == "control.model" for p in probs)
+    m["units"]["mesh"] = {"class": "compute.tensor", "control": "isa"}
+    assert machine.check(m) == []
+
+
+def test_space_names_generator_parameters():
+    m = _foreign(toolchain={"generator": {"command": "gen", "params": {"DIM": 16}}},
+                 space={"toolchain.generator.params.DIM": [8, 16, 32]})
+    assert machine.check(m) == []
+    m["space"] = {"toolchain.generator.params.ROWS": [8]}
+    assert [p.where for p in machine.check(m)] == ["space.toolchain.generator.params.ROWS"]
+
+
+def test_vendor_tensor_kind_in_a_namespace():
+    from atelier_spec.protocols import tensor_kind_ok
+    assert tensor_kind_ok("systolic_ws") and tensor_kind_ok("gemmini.mesh") and tensor_kind_ok("nvdla.cmac")
+    assert not tensor_kind_ok("mesh") and not tensor_kind_ok("Gemmini.Mesh") and not tensor_kind_ok(None)

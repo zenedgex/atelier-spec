@@ -1,8 +1,9 @@
-"""atelier-spec: check block contracts and machine descriptions.
+"""atelier-spec: check block contracts, machine descriptions and profiles.
 
     atelier-spec block check FILE...            # 0.x files are migrated first
     atelier-spec block migrate FILE [-o OUT]    # write the 1.0 form
     atelier-spec machine check FILE... [--blocks DIR]...
+    atelier-spec profile check FILE... [--machine M]
     atelier-spec versions
 """
 
@@ -13,7 +14,7 @@ import json
 import sys
 from pathlib import Path
 
-from atelier_spec import STANDARDS, block, machine
+from atelier_spec import STANDARDS, block, machine, profile
 
 
 def _report(name: str, problems) -> bool:
@@ -52,6 +53,10 @@ def main(argv: list[str] | None = None) -> int:
     mc = m.add_parser("check")
     mc.add_argument("files", nargs="+")
     mc.add_argument("--blocks", action="append", default=[], help="a directory of block contracts")
+    pr = sub.add_parser("profile").add_subparsers(dest="cmd", required=True)
+    pc = pr.add_parser("check")
+    pc.add_argument("files", nargs="+")
+    pc.add_argument("--machine", help="the machine description the profiles ran on")
     sub.add_parser("versions")
     a = ap.parse_args(argv)
 
@@ -63,6 +68,11 @@ def main(argv: list[str] | None = None) -> int:
         Path(a.out).write_text(text) if a.out else sys.stdout.write(text)
         return 0
     ok = True
+    if a.what == "profile":
+        m = machine.load(a.machine) if a.machine else None
+        for f in a.files:
+            ok &= _report(f, profile.check(profile.load(f), m))
+        return 0 if ok else 1
     if a.what == "block":
         for f in a.files:
             ok &= _report(f, block.check(block.load(f)))

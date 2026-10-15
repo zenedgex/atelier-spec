@@ -1,0 +1,22 @@
+# expect: should be non-empty
+# machine: gemmini.yaml
+standard: atelier-profile/0.1
+run:
+  machine:
+    name: gemmini-default
+    params:
+      meshRows: 16
+      meshColumns: 16
+  network: conv-example
+  batch: 1
+  compiler:
+    name: gemmini.h
+    options:
+      function: tiled_conv_auto
+      dataflow: WS
+  clock: 1GHz
+  evidence: rtl-sim
+  tool: chipyard verilator
+layers: []
+total:
+  cycles: 1200

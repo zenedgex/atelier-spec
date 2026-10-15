@@ -1,0 +1,64 @@
+# Gemmini on a Rocket core (R1.5, spec 20): an accelerator we did not generate, issued by RoCC instructions.
+# Parameters are Gemmini's documented defaults; E1 pins the commit and confirms them against its generated RTL.
+standard: atelier-machine/0.3
+name: gemmini-default
+
+units:
+  rocket:
+    class: control.core
+    params: {XLEN: 64, BOOT_ADDR: 0x0001_0000}
+    control: isa
+  mesh:
+    class: compute.tensor
+    params: {DIM: 16, TILE_ROWS: 1, TILE_COLS: 1, DATAFLOW: both}   # weight- or output-stationary per layer
+    formats: [int8, int32]
+    control: isa                     # RoCC custom instructions of the Rocket core: a coprocessor, no queue
+    contract: gemmini/rocc.json      # mvin, mvout, preload, compute, config, loop_ws, loop_conv_ws (E1)
+  dma:
+    class: movement.dma
+    params: {CHANNELS: 1, WIDTH: 128, IN_FLIGHT: 16}
+
+memory:
+  - {name: spad, level: 1, kind: scratchpad, per: mesh, size: 256KiB, banks: 4, width: 128}
+  - {name: acc,  level: 1, kind: scratchpad, per: mesh, size: 64KiB,  banks: 2, width: 512, note: int32 accumulator}
+  - {name: l1d,  level: 1, kind: cache, per: rocket, size: 16KiB, ways: 4, line: 64}
+  - {name: l2,   level: 2, kind: cache, per: chip, size: 512KiB, banks: 1, ways: 8, line: 64}
+  - {name: dram, level: 3, kind: dram, per: chip}
+
+movement:
+  dma: [{engine: dma, from: l2, to: [spad, acc]}, {engine: dma, from: [spad, acc], to: l2}]
+
+interconnect:
+  topology: bus
+  protocol: tilelink
+  masters: [rocket, dma]
+  slaves: [l2, dram]
+
+control:
+  model: coprocessor
+  core: rocket
+  os: none
+  coherence: io                      # the DMA reads and writes through the coherent L2
+  translation: {kind: tlb, entries: 4}
+
+toolchain:
+  compiler:   {command: "riscv64-unknown-elf-gcc with gemmini.h (tiled_matmul_auto, tiled_conv_auto)",
+               reads: [network C source], writes: [elf]}
+  functional: {command: "spike --extension=gemmini", reads: [elf], writes: [outputs], evidence: estimate}
+  simulator:  {command: "chipyard sims/verilator, CONFIG=GemminiRocketConfig", reads: [elf],
+               writes: [outputs, cycles], evidence: rtl-sim}
+  generator:
+    command: "chipyard make CONFIG=GemminiRocketConfig (GemminiConfigs)"
+    writes: [verilog]
+    params: {meshRows: 16, meshColumns: 16, tileRows: 1, tileColumns: 1, sp_capacity_kib: 256,
+             acc_capacity_kib: 64, sp_banks: 4, acc_banks: 2, dma_buswidth: 128, max_in_flight_mem_reqs: 16,
+             tlb_size: 4, dataflow: BOTH}
+
+source: {repo: "https://github.com/ucb-bar/gemmini", license: BSD-3-Clause, note: commit pinned at E1}
+
+space:
+  toolchain.generator.params.meshRows: [8, 16, 32]
+  toolchain.generator.params.meshColumns: [8, 16, 32]
+  toolchain.generator.params.sp_capacity_kib: [128, 256, 512]
+  toolchain.generator.params.acc_capacity_kib: [32, 64, 128]
+  toolchain.generator.params.dma_buswidth: [64, 128, 256]

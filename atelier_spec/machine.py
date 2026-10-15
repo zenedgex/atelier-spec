@@ -1,4 +1,4 @@
-"""Machine descriptions (atelier-machine/0.2; 0.1 still reads): load and check a whole chip.
+"""Machine descriptions (atelier-machine/0.3; 0.1 and 0.2 still read): load and check a whole chip.
 
     from atelier_spec import machine
     m = machine.load("npu.yaml")
@@ -16,6 +16,14 @@ control.dispatcher block, or a core running it as firmware) and how many tokens 
 command or ISA unit gets a queue and every DMA channel one (the DMA unit's CHANNELS); stream
 ports (`movement.streams`) are address-less spaces a DMA reads or writes; a memory's `share`
 says how a DMA and a unit share its port (arbiter, dual_port, bank_split).
+
+0.3 adds what an accelerator we did not generate needs (atelier-platform spec 20): units programmed
+by register groups (`control: registers`, with `registers: {groups, kick, completion}`; a group is
+written while another runs), each unit's `formats` and its `contract` file, unit `pipelines` (data
+from unit to unit without a memory), a host-attached `coprocessor` control model with its coherence
+and address translation, the accelerator's own `toolchain` (compiler, simulators, generator and its
+parameters, which `space` may name) and the upstream `source`. A 0.1 or 0.2 file that uses any of
+them is an error: it must say 0.3.
 """
 
 from __future__ import annotations
@@ -30,8 +38,8 @@ from typing import Callable, NamedTuple
 from atelier_spec.block import Problem
 from atelier_spec.protocols import CORE_CLASSES, PROTOCOLS, SLOT_CLASSES
 
-STANDARD = "atelier-machine/0.2"
-SCHEMA = Path(__file__).resolve().parent / "data" / "schemas" / "machine-0.2.schema.json"
+STANDARD = "atelier-machine/0.3"
+SCHEMA = Path(__file__).resolve().parent / "data" / "schemas" / "machine-0.3.schema.json"
 
 _UNITS = {"": 1, "B": 1, "KiB": 1 << 10, "MiB": 1 << 20, "GiB": 1 << 30, "TiB": 1 << 40,
           "KB": 10**3, "MB": 10**6, "GB": 10**9}
@@ -72,6 +80,7 @@ def check(m: dict, blocks: Callable[[str], dict | None] | None = None) -> list[P
         return out
     ids = _Ids(m)
     out += ids.problems
+    out += _check_version(m)
     out += _check_units(m, blocks)
     out += _check_clusters(m, ids)
     out += _check_memory(m, ids)
@@ -79,6 +88,7 @@ def check(m: dict, blocks: Callable[[str], dict | None] | None = None) -> list[P
     out += _check_dispatch(m, ids, blocks)
     out += _check_interconnect(m, ids)
     out += _check_control(m, blocks)
+    out += _check_pipelines(m, ids)
     out += _check_address_map(m)
     out += _check_clocks(m, ids)
     out += _check_space(m)
@@ -113,10 +123,35 @@ def _unit_class(u: dict, blocks) -> str | None:
     return None
 
 
+_V03_TOP = ("pipelines", "toolchain", "source")
+_V03_UNIT = ("contract", "formats", "registers")
+
+
+def _check_version(m: dict) -> list[Problem]:
+    """0.3's sections and fields need a file that says 0.3."""
+    if m["standard"] == STANDARD:
+        return []
+    used = [k for k in _V03_TOP if k in m]
+    used += [f"units.{uid}.{k}" for uid, u in m["units"].items() for k in _V03_UNIT if k in u]
+    used += [f"units.{uid}.control: registers" for uid, u in m["units"].items() if u.get("control") == "registers"]
+    c = m["control"]
+    used += ["control.model: coprocessor"] * (c.get("model") == "coprocessor")
+    used += [f"control.{k}" for k in ("coherence", "translation") if k in c]
+    return [Problem("error", "standard", f"{x} is new in {STANDARD}; the file says {m['standard']}") for x in used]
+
+
 def _check_units(m: dict, blocks) -> list[Problem]:
     out = []
     for uid, u in m["units"].items():
         where = f"units.{uid}"
+        if u.get("control") == "registers" and "registers" not in u:
+            out.append(Problem("error", where, "control: registers needs a registers section (groups, kick, completion)"))
+        if "registers" in u and u.get("control") != "registers":
+            out.append(Problem("error", where, f"a registers section, but control is {u.get('control', 'unset')!r}"))
+        if (m["standard"] == STANDARD and u.get("control") in ("command", "registers")
+                and "contract" not in u and "block" not in u):     # 0.3: where a unit's contract can be named
+            out.append(Problem("warning", where, f"control: {u['control']} without a contract or a block: "
+                                                 f"nothing says how to program it"))
         cls = u.get("class")
         if cls and cls not in SLOT_CLASSES:
             out.append(Problem("error", where, f"class {cls!r} is not a slot class"))
@@ -218,7 +253,8 @@ def queues(m: dict) -> list[Queue]:
 
     A command unit takes commands; an ISA unit that runs its own kernels (a core class: an SM, a DSP
     core) takes launches; an ISA unit issued by another core's instructions (a tensor core, a DSP's
-    matrix unit) is a coprocessor and has no queue. The dispatcher itself has none."""
+    matrix unit) is a coprocessor and has no queue. A register-programmed unit (control: registers) is
+    written by a core, not dispatched, and has none. The dispatcher itself has none."""
     if "dispatch" not in m:
         return []
     dmas = _dma_units(m)
@@ -282,9 +318,32 @@ def _check_control(m: dict, blocks) -> list[Problem]:
     if cls is not None and cls not in CORE_CLASSES:
         return [Problem("error", "control.core", f"{c['core']!r} is a {cls}; a control core is one of "
                                                  f"{sorted(CORE_CLASSES)}")]
+    if c["model"] == "coprocessor" and not any(
+            x.get("control") == "isa" and x.get("class") not in CORE_CLASSES and uid != c["core"]
+            for uid, x in m["units"].items()):
+        return [Problem("warning", "control.model", "coprocessor, but no unit is issued by the core's "
+                                                    "instructions (control: isa, not a core class)")]
     if c["model"] == "application" and c.get("os") == "none":
         return [Problem("warning", "control.os", "an application processor usually runs an OS")]
     return []
+
+
+def _check_pipelines(m: dict, ids: _Ids) -> list[Problem]:
+    """Units that pass data unit to unit (NVDLA's conv to SDP to PDP), optionally through a buffer."""
+    out, names = [], set()
+    for p in m.get("pipelines", []):
+        where = f"pipelines.{p['name']}"
+        if p["name"] in names:
+            out.append(Problem("error", where, "pipeline name used twice"))
+        names.add(p["name"])
+        for x in p["units"]:
+            if ids.kind.get(x) != "unit":
+                out.append(Problem("error", where, f"{x!r} is not a unit"))
+        if len(set(p["units"])) != len(p["units"]):
+            out.append(Problem("error", where, "a unit appears twice"))
+        if "buffer" in p and ids.kind.get(p["buffer"]) != "memory":
+            out.append(Problem("error", where, f"buffer {p['buffer']!r} is not a memory"))
+    return out
 
 
 def _check_address_map(m: dict) -> list[Problem]:

@@ -11,6 +11,8 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 BLOCK = yaml.safe_load((ROOT / "conformance/block/good/acme_vec.block.yaml").read_text())
 MACHINE = yaml.safe_load((ROOT / "conformance/machine/good/npu.yaml").read_text())
+NVDLA = yaml.safe_load((ROOT / "conformance/machine/good/nvdla_small.yaml").read_text())
+PROFILE = yaml.safe_load((ROOT / "conformance/profile/good/gemmini_conv.yaml").read_text())
 
 
 def cmd(s):
@@ -69,18 +71,51 @@ MACHINE_CASES = {
     "unknown_share": (lambda m: m["memory"][0].update(share="triple"), "'triple' is not one of"),
 }
 
+# 0.3, on NVDLA nv_small: register groups, pipelines, formats, the version (spec 20)
+NVDLA_CASES = {
+    "v03_section_in_02_file": (lambda m: m.update(standard="atelier-machine/0.2"),
+                               "pipelines is new in atelier-machine/0.3"),
+    "pipeline_unknown_unit": (lambda m: m["pipelines"][0]["units"].append("rubik"), "'rubik' is not a unit"),
+    "pipeline_buffer_not_memory": (lambda m: m["pipelines"][0].update(buffer="sdp"), "buffer 'sdp' is not a memory"),
+    "pipeline_unit_twice": (lambda m: m["pipelines"][0]["units"].append("sdp"), "a unit appears twice"),
+    "registers_without_groups": (lambda m: m["units"]["conv"].pop("registers"),
+                                 "control: registers needs a registers section"),
+    "registers_on_a_command_unit": (lambda m: m["units"]["conv"].update(control="command"),
+                                    "a registers section, but control is 'command'"),
+    "unknown_format": (lambda m: m["units"]["conv"].update(formats=["int8", "fp12"]), "units.conv.formats"),
+    "unknown_protocol_03": (lambda m: m["interconnect"].update(protocol="wishbone"), "'wishbone' is not a protocol"),
+}
 
-def write(base, cases, out):
+# profiles (atelier-profile/0.1), on the Gemmini conv profile; checked against gemmini.yaml
+PROFILE_CASES = {
+    "busy_over_cycles": (lambda p: p["layers"][0]["activity"]["mesh"].update(stall=500),
+                         "busy 600 + stall 500 > the layer's 1000 cycles"),
+    "end_before_start": (lambda p: p["layers"][0].update(start=50, end=10), "before its start"),
+    "span_not_cycles": (lambda p: p["layers"][0].update(end=900), "end - start = 900, cycles = 1000"),
+    "unknown_evidence": (lambda p: p["run"].update(evidence="measured"), "'measured' is not a label"),
+    "duplicate_layer": (lambda p: p["layers"][1].update(name="conv1"), "layer name used twice"),
+    "unknown_unit": (lambda p: p["layers"][0]["units"].append("vpu"), "unit 'vpu' is not in machine"),
+    "unknown_route": (lambda p: p["layers"][0]["bytes"].update({"dram>spad2": 64}), "'spad2' is not a memory or stream"),
+    "no_layers": (lambda p: p.update(layers=[]), "should be non-empty"),
+    "other_machine": (lambda p: p["run"]["machine"].update(name="nvdla-nv-small"), "the machine is 'gemmini-default'"),
+}
+
+
+def write(out, *sets, header=""):
+    """Rewrite `out` with every (base, cases) set's files."""
     out.mkdir(parents=True, exist_ok=True)
     for f in out.glob("*.yaml"):
         f.unlink()
-    for name, (change, expect) in cases.items():
-        s = copy.deepcopy(base)
-        change(s)
-        (out / f"{name}.yaml").write_text(f"# expect: {expect}\n" + yaml.safe_dump(s, sort_keys=False))
+    for base, cases in sets:
+        for name, (change, expect) in cases.items():
+            s = copy.deepcopy(base)
+            change(s)
+            (out / f"{name}.yaml").write_text(f"# expect: {expect}\n{header}" + yaml.safe_dump(s, sort_keys=False))
 
 
 if __name__ == "__main__":
-    write(BLOCK, BLOCK_CASES, ROOT / "conformance/block/bad")
-    write(MACHINE, MACHINE_CASES, ROOT / "conformance/machine/bad")
-    print(len(BLOCK_CASES), "block cases,", len(MACHINE_CASES), "machine cases")
+    write(ROOT / "conformance/block/bad", (BLOCK, BLOCK_CASES))
+    write(ROOT / "conformance/machine/bad", (MACHINE, MACHINE_CASES), (NVDLA, NVDLA_CASES))
+    write(ROOT / "conformance/profile/bad", (PROFILE, PROFILE_CASES), header="# machine: gemmini.yaml\n")
+    print(len(BLOCK_CASES), "block cases,", len(MACHINE_CASES) + len(NVDLA_CASES), "machine cases,",
+          len(PROFILE_CASES), "profile cases")

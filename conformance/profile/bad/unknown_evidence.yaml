@@ -1,0 +1,66 @@
+# expect: 'measured' is not a label
+# machine: gemmini.yaml
+standard: atelier-profile/0.1
+run:
+  machine:
+    name: gemmini-default
+    params:
+      meshRows: 16
+      meshColumns: 16
+  network: conv-example
+  batch: 1
+  compiler:
+    name: gemmini.h
+    options:
+      function: tiled_conv_auto
+      dataflow: WS
+  clock: 1GHz
+  evidence: measured
+  tool: chipyard verilator
+layers:
+- name: conv1
+  op: conv2d
+  shapes:
+    input:
+    - 1
+    - 56
+    - 56
+    - 64
+    weight:
+    - 64
+    - 3
+    - 3
+    - 64
+    output:
+    - 1
+    - 56
+    - 56
+    - 64
+  formats:
+  - int8
+  - int32
+  units:
+  - mesh
+  - dma
+  cycles: 1000
+  start: 0
+  end: 1000
+  macs: 115605504
+  activity:
+    mesh:
+      busy: 600
+      stall: 300
+    dma:
+      busy: 700
+  bytes:
+    l2>spad: 4096
+    acc>l2: 2048
+  counters:
+    rob_full: 12
+- name: pool1
+  op: maxpool
+  cycles: 200
+  start: 1000
+  end: 1200
+total:
+  cycles: 1200

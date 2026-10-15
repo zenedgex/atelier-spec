@@ -53,6 +53,15 @@ _p("job", "start base", "active err records")               # start a dispatcher
 _p("tokens", "data")                                         # the dispatcher's token values (observe)
 _p("observe", "data")                                        # counters a test or a profiler reads
 _p("sram_port", "req addr", "we mask wdata rvalid rdata")   # always ready: data the cycle after
+# interfaces of accelerators we did not generate (atelier-platform spec 20)
+_p("rocc", "cmd_valid cmd_ready cmd_inst cmd_rs1 cmd_rs2",   # a RoCC coprocessor of a Rocket-class core
+   "resp_valid resp_ready resp_rd resp_data busy interrupt exception")
+_p("tilelink",                                               # TL-UL/UH (A and D channels); TL-C adds B, C, E
+   "a_valid a_ready a_opcode a_address d_valid d_ready d_opcode",
+   "a_param a_size a_source a_mask a_data a_corrupt d_param d_size d_source d_sink d_denied d_data d_corrupt "
+   "b_valid b_ready b_opcode b_address c_valid c_ready c_opcode c_address c_data e_valid e_ready e_sink")
+_p("csb", "req_valid req_ready req_addr req_wdat req_write",  # NVDLA's configuration space bus
+   "req_nposted req_pd resp_valid resp_rdat resp_error")
 
 ROLES = {"source", "sink", "master", "slave"}
 
@@ -89,6 +98,12 @@ SLOT_CLASSES: dict[str, str] = {
 CATEGORIES = ("compute", "accelerator", "memory", "vector", "control", "movement")
 
 TENSOR_KINDS = {"systolic_ws", "systolic_os", "mac_array", "cim", "tensor_core", "hmx"}
+
+
+def tensor_kind_ok(kind) -> bool:
+    """A kind of the list, or a vendor's own in a namespace (`gemmini.mesh`, `nvdla.cmac`), as ops are."""
+    import re
+    return kind in TENSOR_KINDS or (isinstance(kind, str) and re.fullmatch(r"[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*", kind) is not None)
 
 # classes whose blocks run programs: they need a core contract when programmed by an ISA
 CORE_CLASSES = {"control.core", "compute.vliw", "compute.simt"}

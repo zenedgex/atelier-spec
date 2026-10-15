@@ -5,9 +5,10 @@ The Atelier standards: the formats every other Atelier repository reads and writ
 | Standard | Version | Prose | Machine-readable | Checker |
 |---|---|---|---|---|
 | Block contract | `atelier-block/1.0` (draft) | [standards/block.md](standards/block.md) | [schema](atelier_spec/data/schemas/block-1.0.schema.json) | `atelier-spec block check` |
-| Machine description | `atelier-machine/0.1` (draft) | [standards/machine.md](standards/machine.md) | [schema](atelier_spec/data/schemas/machine-0.1.schema.json) | `atelier-spec machine check` |
+| Machine description | `atelier-machine/0.3` (draft) | [standards/machine.md](standards/machine.md) | [schema](atelier_spec/data/schemas/machine-0.3.schema.json) | `atelier-spec machine check` |
 | Op set | `atelier-ops/0.1` (draft) | [standards/ops.md](standards/ops.md) | [opset-0.1.yaml](atelier_spec/data/opset-0.1.yaml) | references in `atelier_spec/ops_ref.py` |
 | Evidence labels | `atelier-evidence/1.0` (draft) | [standards/evidence.md](standards/evidence.md) | | `atelier_spec.evidence` |
+| Profile | `atelier-profile/0.1` (draft) | [standards/profile.md](standards/profile.md) | [schema](atelier_spec/data/schemas/profile-0.1.schema.json) | `atelier-spec profile check` |
 | Program image | not yet written | [standards/image.md](standards/image.md) | | |
 
 ## Use
@@ -17,6 +18,7 @@ uv venv && uv pip install -e '.[dev]'
 .venv/bin/atelier-spec block check conformance/block/good/acme_vec.block.yaml
 .venv/bin/atelier-spec block migrate old/block.json            # 0.x -> 1.0
 .venv/bin/atelier-spec machine check conformance/machine/good/*.yaml --blocks path/to/blocks
+.venv/bin/atelier-spec profile check conformance/profile/good/*.yaml --machine conformance/machine/good/gemmini.yaml
 .venv/bin/pytest -q
 ```
 
@@ -28,7 +30,7 @@ problems = machine.check(machine.load("npu.yaml"), blocks=lookup)
 
 ## Conformance suite
 
-- `conformance/block/good` and `conformance/machine/good` must pass.
+- `conformance/block/good`, `conformance/machine/good` and `conformance/profile/good` must pass.
 - Each file in `conformance/*/bad` must fail with the error named on its first line (`# expect: ...`).
 - `tools/make_conformance.py` regenerates the bad cases from the good ones.
 - Another implementation of these standards is conformant when it agrees on every file.
@@ -36,7 +38,7 @@ problems = machine.check(machine.load("npu.yaml"), blocks=lookup)
 ## Status
 
 Drafts, versioned as above.
-- **Available:** block 1.0 and machine 0.1, with schemas, checkers and conformance suites; the op set 0.1, with bit-exact references for 12 ops; evidence 1.0.
+- **Available:** block 1.0, machine 0.3 (with Gemmini and NVDLA nv_small as examples of accelerators we did not generate) and profile 0.1, with schemas, checkers and conformance suites; the op set 0.1, with bit-exact references for 12 ops; evidence 1.0.
 - **Next:** the program image 1.0, and the remaining op references (softmax, rmsnorm, rope, table activations, pooling).
 
 Issues and proposals are welcome.

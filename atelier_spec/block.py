@@ -21,7 +21,7 @@ from pathlib import Path
 
 from atelier_spec import evidence, expr, ops
 from atelier_spec.protocols import (CORE_CLASSES, MIGRATE_CLASS, PROTOCOLS, ROLES, SLOT_CLASSES,
-                                    TENSOR_KINDS)
+                                    TENSOR_KINDS, tensor_kind_ok)
 
 STANDARD = "atelier-block/1.0"
 SCHEMA = Path(__file__).resolve().parent / "data" / "schemas" / "block-1.0.schema.json"
@@ -131,8 +131,9 @@ def _check_class(spec: dict) -> list[Problem]:
     cls = spec["slot_class"]
     if cls not in SLOT_CLASSES:
         out.append(Problem("error", "slot_class", f"{cls!r} is not a slot class of {STANDARD}"))
-    if cls == "compute.tensor" and spec.get("kind") not in TENSOR_KINDS:
-        out.append(Problem("error", "kind", f"a compute.tensor block needs kind, one of {sorted(TENSOR_KINDS)}"))
+    if cls == "compute.tensor" and not tensor_kind_ok(spec.get("kind")):
+        out.append(Problem("error", "kind", f"a compute.tensor block needs kind, one of {sorted(TENSOR_KINDS)} "
+                                            f"or a vendor's own in a namespace (acme.mesh)"))
     if cls in CORE_CLASSES and "boot_addr" not in spec.get("core", {}):
         out.append(Problem("error", "core.boot_addr", f"a {cls} block needs a core contract with its boot address "
                                                       f"(a parameter or a strap port)"))

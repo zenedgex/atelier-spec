@@ -1,10 +1,11 @@
 # Atelier Machine Description
 
-Version 0.2 (draft), 2026-10-10. 0.2 adds dispatch (atelier-platform spec 16); a 0.1 file still reads.
-- Schema: `atelier_spec/data/schemas/machine-0.2.schema.json`
+Version 0.3 (draft), 2026-10-15. 0.2 added dispatch (atelier-platform spec 16); 0.3 adds what an
+accelerator we did not generate needs (spec 20, section 5). 0.1 and 0.2 files still read.
+- Schema: `atelier_spec/data/schemas/machine-0.3.schema.json` (0.2's is kept beside it)
 - Checker: `atelier-spec machine check`
 - Conformance suite: `conformance/machine/`
-- Examples: `conformance/machine/good/`, one each of an NPU, a GPU-like chip, a DSP and a CIM chip
+- Examples: `conformance/machine/good/`, one each of an NPU, a GPU-like chip, a DSP and a CIM chip; Gemmini and NVDLA nv_small (0.3)
 
 A machine description is one YAML (or JSON) file that describes a whole chip:
 - its units;
@@ -21,18 +22,21 @@ It names blocks by their contracts (`standards/block.md`); it contains no RTL. T
 
 | Section | Required | Content |
 |---|---|---|
-| `standard` | yes | `atelier-machine/0.2` (or `/0.1`) |
+| `standard` | yes | `atelier-machine/0.3` (or `/0.2`, `/0.1`) |
 | `name` | yes | |
-| `units` | yes | id → `{class and/or block, params, capabilities, control: command \| isa \| none, core, timing}`; `timing`: the block's timing fields resolved for these params (block standard section 3.3), what the compiler's cost model reads |
+| `units` | yes | id → `{class and/or block, params, capabilities, control: command \| isa \| registers \| none, core, timing, contract, formats, registers}`; `timing`: the block's timing fields resolved for these params (block standard section 3.3), what the compiler's cost model reads; `contract`, `formats`, `registers` and `control: registers` are 0.3 (section 5) |
 | `clusters` | no | id → `{count, contains: [unit and memory ids], wiring: template id}` |
 | `memory` | yes | a list of `{name, level, kind, per, size, banks, width, ports, share, ways, line, latency, energy, policy, type, bandwidth, block}` |
 | `movement` | no | `dma: [{engine, from, to}]` (routes), `streams: [{name, unit, direction, width}]`, `bridges: [{from_bus, to_bus}]` |
 | `dispatch` | no | `{by, per, tokens, depth, queues: {unit: {depth}}}` (0.2) |
 | `interconnect` | no | `{topology: bus \| crossbar \| noc \| auto, protocol, width, masters, slaves}` |
-| `control` | yes | `{model: microcontroller \| application \| host \| computing, core: unit id, os: none \| rtos \| linux}` |
+| `control` | yes | `{model: microcontroller \| application \| host \| computing \| coprocessor, core: unit id, os: none \| rtos \| linux, coherence, translation}` |
 | `address_map` | no | region → `{base, size, stride, target}` |
 | `clocks` | no | domain → `{freq, units}` |
 | `space` | no | dotted path → list of values, for exploration |
+| `pipelines` | no | 0.3: `[{name, units, fused, buffer}]` |
+| `toolchain` | no | 0.3: `{compiler, functional, simulator, generator, synthesis, profiler}`, each `{command, reads, writes, params, evidence}` |
+| `source` | no | 0.3: `{repo, commit, license}` of an accelerator we did not generate |
 
 **Memory fields:**
 - `kind`: register_file, scratchpad, cache, tcm, compute (CIM weights), dram, rom.
@@ -74,9 +78,13 @@ The checker reports an error when:
 - the control core is not a unit, or is not a `control.core`, `compute.vliw` or `compute.simt`;
 - two address regions overlap;
 - a clock domain names nothing, or a unit is in two domains;
-- a `space` path names nothing in the machine.
+- a `space` path names nothing in the machine;
+- (0.3) a 0.1 or 0.2 file uses a 0.3 section or field;
+- (0.3) a `control: registers` unit has no `registers` section, or a unit has one with another control;
+- (0.3) a pipeline names something that is not a unit, a unit twice, or a buffer that is not a memory.
 
-Warnings: a memory with `share` that no DMA reaches; dispatch where no unit takes a queue; a cache without a line size; a gap in memory levels; an application processor without an OS; a block not found in the libraries given.
+Warnings: (0.3) a command or registers unit with neither a contract nor a block; a coprocessor
+control model with no unit issued by the core's instructions; a memory with `share` that no DMA reaches; dispatch where no unit takes a queue; a cache without a line size; a gap in memory levels; an application processor without an OS; a block not found in the libraries given.
 
 **Planned for 0.2:**
 - the tensor unit's tile fits its L1;
@@ -94,3 +102,25 @@ memories, 2,000 regions and a 256-instance cluster.
 
 As the block standard: `major.minor`. A minor version adds sections or fields; a major version
 changes a rule.
+
+## 5. Accelerators we did not generate (0.3)
+
+Atelier also analyzes, explores and maps accelerators it did not generate: a customer's NPU, or an
+open one (atelier-platform spec 20). 0.3 adds what they need; nothing in it changes a 0.2 rule.
+
+| Addition | Fields | Why (first user) |
+|---|---|---|
+| Register-programmed units | `control: registers`; `registers: {groups, kick, completion: interrupt \| poll, bus}` | per-layer register groups, a group written while another runs (NVDLA's ping-pong) |
+| Each unit's contract and formats | `contract`: its command or register table; `formats`: `int8`, `int16`, `fp16`, `bf16`, `fp8_e4m3`, ... | formats follow units (platform R5.2) |
+| Unit pipelines | `pipelines: [{name, units, fused, buffer}]` | data from unit to unit without a memory (NVDLA's conv → SDP → PDP) |
+| A host-attached coprocessor | `control.model: coprocessor`; `coherence: none \| io \| full`; `translation: {kind: none \| tlb \| iommu, entries}` | Gemmini, issued by a Rocket core's RoCC instructions |
+| The accelerator's own tools | `toolchain`: its compiler, functional model, simulator, generator (with `params`), synthesis, profiler | to run their flow, not ours; `space` may name `toolchain.generator.params.*` |
+| Where it comes from | `source: {repo, commit, license}` | upstream pinned, never copied |
+
+Also for these accelerators: protocols `rocc`, `tilelink` and `csb` (block standard section 4), and a
+`compute.tensor` kind may be a vendor's own in a namespace (`gemmini.mesh`, `nvdla.cmac`).
+
+**Queues:** a `control: registers` unit is written by a core, not dispatched: it takes no queue.
+
+**Profiles** of runs on a machine are `atelier-profile/0.1` files (`standards/profile.md`).
+

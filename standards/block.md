@@ -118,7 +118,7 @@ The values in this example are illustrative.
 - `capabilities`: the ops the block performs, by name from the op set (section 5.2), with operand
   and result formats.
 - `programming`: how the block is driven (section 5.3). Omitted means `none`.
-- `kind` (`compute.tensor` only): `systolic_ws`, `systolic_os`, `mac_array`, `cim`, `tensor_core` or `hmx`.
+- `kind` (`compute.tensor` only): `systolic_ws`, `systolic_os`, `mac_array`, `cim`, `tensor_core` or `hmx`, or a vendor's own in a namespace (`gemmini.mesh`, `nvdla.cmac`), as ops are.
 - A port group gives its ports as a role map, a list (role = port name), or a `prefix`/`suffix` that
   finds them in the RTL (`prefix: s_axil_` maps role `awvalid` to port `s_axil_awvalid`).
 - `timing` and `cost`: numbers or expressions in the parameters, each with an `evidence` label.
@@ -233,6 +233,14 @@ New in 1.0:
 | `tokens` | `data` | a dispatcher's token values, token *t* at `[32t +: 32]`, for observation |
 | `observe` | `data` | counters (port grants, busy cycles) a test or a profiler reads; no effect on the block |
 | `sram_port` | `req`, `addr` (+ `we`, `mask`, `wdata`, `rvalid`, `rdata`) | always ready: a request is taken every cycle; a read's words come the cycle after (`rvalid`) |
+
+Added for accelerators we did not generate (atelier-platform spec 20; machine 0.3):
+
+| Protocol | Ports (roles) | Rule |
+|---|---|---|
+| `rocc` | `cmd_valid`, `cmd_ready`, `cmd_inst`, `cmd_rs1`, `cmd_rs2` (+ `resp_valid`, `resp_ready`, `resp_rd`, `resp_data`, `busy`, `interrupt`, `exception`) | as Rocket Chip's RoCC: a custom instruction and its two source registers per transfer |
+| `tilelink` | `a_valid`, `a_ready`, `a_opcode`, `a_address`, `d_valid`, `d_ready`, `d_opcode` (+ the A and D channels' other fields; B, C and E for TL-C) | as the TileLink specification (TL-UL, TL-UH, TL-C) |
+| `csb` | `req_valid`, `req_ready`, `req_addr`, `req_wdat`, `req_write` (+ `req_nposted`, `req_pd`, `resp_valid`, `resp_rdat`, `resp_error`) | as NVDLA's configuration space bus |
 
 Roles `master`/`slave` are used with the buses; `source`/`sink` with streams. A block MAY use a
 protocol not listed only through a versioned addition to this table.
