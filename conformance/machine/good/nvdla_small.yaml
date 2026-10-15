@@ -20,6 +20,7 @@ units:
     class: compute.tensor
     params: {ATOMIC_C: 8, ATOMIC_K: 8}           # CSC, CMAC and CACC: 64 int8 MACs a cycle
     formats: [int8]
+    capabilities: {array: {rows: 8, cols: 8, maps: [[k, n]]}}   # input channels on rows, output channels on columns
     control: registers
     registers: {groups: 2, kick: D_OP_ENABLE, completion: interrupt, bus: csb}
     contract: nvdla/registers.json

@@ -1,5 +1,7 @@
 # Gemmini on a Rocket core (R1.5, spec 20): an accelerator we did not generate, issued by RoCC instructions.
-# Parameters are Gemmini's documented defaults; E1 pins the commit and confirms them against its generated RTL.
+# Checked (E1, 2026-10-15) against GemminiRocketConfig's RTL from Chipyard 1.15.0 (Gemmini 8c3f992): Mesh of 256
+# Tiles, 4 ScratchpadBanks of 4096 x 128 b, 2 AccumulatorMems of 512 x 512 b (a read and a write port), L1D two
+# 256 x 512 b arrays (64 sets, 8 ways), L2 eight 8192 x 64 b arrays; address map and clock from its device tree.
 standard: atelier-machine/0.3
 name: gemmini-default
 
@@ -10,19 +12,23 @@ units:
     control: isa
   mesh:
     class: compute.tensor
-    params: {DIM: 16, TILE_ROWS: 1, TILE_COLS: 1, DATAFLOW: both}   # weight- or output-stationary per layer
+    params: {DIM: 16, TILE_ROWS: 1, TILE_COLS: 1, DATAFLOW: both, ARRAY_OUT_BITS: 20,   # WS or OS per layer
+             LD_QUEUE: 8, EX_QUEUE: 8, ST_QUEUE: 2, RS_LD: 8, RS_EX: 16, RS_ST: 4, MVIN_SCALE: fp32, ACC_SCALE: fp32}
     formats: [int8, int32]
+    capabilities: {array: {rows: 16, cols: 16, maps: [[k, n], [m, n]]}}   # WS: reduction on rows; OS: outputs
     control: isa                     # RoCC custom instructions of the Rocket core: a coprocessor, no queue
     contract: gemmini/rocc.json      # mvin, mvout, preload, compute, config, loop_ws, loop_conv_ws (E1)
   dma:
     class: movement.dma
-    params: {CHANNELS: 1, WIDTH: 128, IN_FLIGHT: 16}
+    params: {CHANNELS: 1, WIDTH: 128, IN_FLIGHT: 16, MAX_BYTES: 64}
 
 memory:
   - {name: spad, level: 1, kind: scratchpad, per: mesh, size: 256KiB, banks: 4, width: 128}
-  - {name: acc,  level: 1, kind: scratchpad, per: mesh, size: 64KiB,  banks: 2, width: 512, note: int32 accumulator}
-  - {name: l1d,  level: 1, kind: cache, per: rocket, size: 16KiB, ways: 4, line: 64}
+  - {name: acc,  level: 1, kind: scratchpad, per: mesh, size: 64KiB,  banks: 2, width: 512, ports: 2, note: int32 accumulator}
+  - {name: l1d,  level: 1, kind: cache, per: rocket, size: 32KiB, ways: 8, line: 64}
+  - {name: l1i,  level: 1, kind: cache, per: rocket, size: 32KiB, ways: 8, line: 64}
   - {name: l2,   level: 2, kind: cache, per: chip, size: 512KiB, banks: 1, ways: 8, line: 64}
+  - {name: sram, level: 2, kind: scratchpad, per: chip, size: 64KiB, note: TileLink RAM}
   - {name: dram, level: 3, kind: dram, per: chip}
 
 movement:
@@ -32,7 +38,7 @@ interconnect:
   topology: bus
   protocol: tilelink
   masters: [rocket, dma]
-  slaves: [l2, dram]
+  slaves: [l2, sram, dram]
 
 control:
   model: coprocessor
@@ -54,7 +60,19 @@ toolchain:
              acc_capacity_kib: 64, sp_banks: 4, acc_banks: 2, dma_buswidth: 128, max_in_flight_mem_reqs: 16,
              tlb_size: 4, dataflow: BOTH}
 
-source: {repo: "https://github.com/ucb-bar/gemmini", license: BSD-3-Clause, note: commit pinned at E1}
+source: {repo: "https://github.com/ucb-bar/gemmini", commit: 8c3f9923a44a2fe2c7930587be297d6d4f8c09ca, license: BSD-3-Clause,
+         note: "in Chipyard 1.15.0 (157dd69), config GemminiRocketConfig"}
+
+address_map:
+  bootrom: {base: 0x0001_0000, size: 64KiB}
+  clint:   {base: 0x0200_0000, size: 64KiB}
+  l2_ctrl: {base: 0x0201_0000, size: 4KiB}
+  sram:    {base: 0x0800_0000, size: 64KiB}
+  plic:    {base: 0x0C00_0000, size: 64MiB}
+  dram:    {base: 0x8000_0000, size: 256MiB}
+
+clocks:
+  chip: {freq: 500MHz, units: [rocket, mesh, dma]}
 
 space:
   toolchain.generator.params.meshRows: [8, 16, 32]

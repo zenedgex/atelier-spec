@@ -120,6 +120,11 @@ open one (atelier-platform spec 20). 0.3 adds what they need; nothing in it chan
 Also for these accelerators: protocols `rocc`, `tilelink` and `csb` (block standard section 4), and a
 `compute.tensor` kind may be a vendor's own in a namespace (`gemmini.mesh`, `nvdla.cmac`).
 
+**A tensor unit's array** (`capabilities.array`, what a bound needs from the description alone):
+`rows` and `cols` (lanes: rows × cols MACs a pass), `cycles_per_pass` (1; a bit-serial CIM array: 8 /
+input bits), and `maps`, the GEMM dimensions it can put on its rows and its columns (`[[k, n]]` for
+weight-stationary and CIM, `[[m, n]]` for output-stationary, both for an array that does both).
+
 **Queues:** a `control: registers` unit is written by a core, not dispatched: it takes no queue.
 
 **Profiles** of runs on a machine are `atelier-profile/0.1` files (`standards/profile.md`).
