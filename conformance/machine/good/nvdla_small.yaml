@@ -91,7 +91,7 @@ toolchain:
     command: "tmake -build vmod (spec nv_small)"
     writes: [verilog]
     params: {ATOMIC_C: 8, ATOMIC_K: 8, CBUF_BANKS: 32, CBUF_BANK_DEPTH: 512, CBUF_BANK_WIDTH_B: 8,
-             MEMIF_WIDTH: 64, SDP_BS: true, SDP_BN: true, SDP_EW: false, PDP: true, CDP: true, RUBIK: false, BDMA: false}
+             MEMIF_WIDTH: 64, SDP_THROUGHPUT: 1, SDP_BS: true, SDP_BN: true, SDP_EW: false, PDP: true, CDP: true, RUBIK: false, BDMA: false}
 
 source: {repo: "https://github.com/nvdla/hw", commit: 8e06b1b9d85aab65b40d43d08eec5ea4681ff715,
          license: NVIDIA Open NVDLA License,
@@ -110,5 +110,7 @@ space:
   toolchain.generator.params.ATOMIC_C: [8, 16, 32, 64]
   toolchain.generator.params.ATOMIC_K: [8, 16, 32]
   toolchain.generator.params.CBUF_BANKS: [16, 32]
-  toolchain.generator.params.CBUF_BANK_DEPTH: [256, 512]
+  toolchain.generator.params.CBUF_BANK_DEPTH: [128, 256, 512]
   toolchain.generator.params.MEMIF_WIDTH: [64, 128, 256]
+  toolchain.generator.params.SDP_THROUGHPUT: [1, 4, 8, 16]     # outputs a cycle through BS/BN (PDP, CDP: half)
+  toolchain.generator.params.SDP_EW: [false, true]            # the SDP's EW stage and its LUT (SiLU, sigmoid)
