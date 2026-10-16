@@ -5,8 +5,10 @@ units:
   host:
     class: control.core
     params:
-      BOOT_ADDR: 0
+      XLEN: 64
+      BOOT_ADDR: 65536
     control: isa
+    note: Rocket
   cdma:
     class: movement.dma
     params:
@@ -26,6 +28,13 @@ units:
       ATOMIC_K: 8
     formats:
     - int8
+    capabilities:
+      array:
+        rows: 8
+        cols: 8
+        maps:
+        - - k
+          - n
     control: registers
     registers:
       groups: 2
@@ -82,8 +91,36 @@ memory:
   size: 128KiB
   banks: 32
   width: 64
-- name: dram
+- name: l1d
+  level: 1
+  kind: cache
+  per: host
+  size: 32KiB
+  ways: 8
+  line: 64
+- name: l1i
+  level: 1
+  kind: cache
+  per: host
+  size: 32KiB
+  ways: 8
+  line: 64
+- name: l2
   level: 2
+  kind: cache
+  per: chip
+  size: 512KiB
+  banks: 1
+  ways: 8
+  line: 64
+- name: sram
+  level: 2
+  kind: scratchpad
+  per: chip
+  size: 64KiB
+  note: TileLink RAM
+- name: dram
+  level: 3
   kind: dram
   per: chip
 movement:
@@ -138,17 +175,20 @@ pipelines:
   note: SDP on the convolution's output, PDP on SDP's, without DRAM
 interconnect:
   topology: bus
-  protocol: axi4
+  protocol: tilelink
   width: 64
   masters:
+  - host
   - cdma
   - rdma
   slaves:
+  - l2
+  - sram
   - dram
 control:
-  model: application
+  model: host
   core: host
-  os: linux
+  os: none
 toolchain:
   compiler:
     command: nvdla_compiler (nvdla/sw umd)
@@ -191,8 +231,34 @@ toolchain:
       BDMA: false
 source:
   repo: https://github.com/nvdla/hw
+  commit: 8e06b1b9d85aab65b40d43d08eec5ea4681ff715
   license: NVIDIA Open NVDLA License
-  note: commit pinned at E1
+  note: Chipyard 1.15.0 (157dd69) generators/nvdla d99ffdc, config SmallNVDLARocketConfig,
+    vsrc/small
+address_map:
+  bootrom:
+    base: 65536
+    size: 64KiB
+  sram:
+    base: 134217728
+    size: 64KiB
+  nvdla:
+    base: 268697600
+    size: 256KiB
+  dram:
+    base: 2147483648
+    size: 256MiB
+clocks:
+  chip:
+    freq: 500MHz
+    units:
+    - host
+    - cdma
+    - rdma
+    - conv
+    - sdp
+    - pdp
+    - cdp
 space:
   toolchain.generator.params.ATOMIC_C:
   - 8

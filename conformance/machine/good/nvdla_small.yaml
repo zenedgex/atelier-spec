@@ -1,13 +1,18 @@
-# NVDLA nv_small (R1.5, spec 20): a fixed-function pipeline programmed by register groups with ping-pong.
-# Parameters are from nv_small's spec (hw/spec/defs/nv_small.spec); E1 pins the commit and confirms them.
+# NVDLA nv_small (R1.5, spec 20): a fixed-function pipeline programmed by register groups with ping-pong, as
+# Chipyard 1.15.0 integrates it (SmallNVDLARocketConfig: a Rocket core, registers by APB at 0x10040000 through
+# NVDLA's apb2csb, its 64-bit AXI memory port onto the system bus). Checked (E1, 2026-10-15) against the
+# Verilog it ships (nvdla/hw 8e06b1b, vsrc/small): two CMAC partitions of 4 MAC cells of 8 int8 lanes (64 MACs a
+# cycle, 8 x 8), CBUF of 64 RAMs of 256 x 64 b (128 KiB), CDP, PDP and SDP, no RUBIK or BDMA instantiated, no
+# second memory interface; the SoC from its device tree.
 standard: atelier-machine/0.3
 name: nvdla-nv-small
 
 units:
   host:
     class: control.core
-    params: {BOOT_ADDR: 0x0000_0000}
+    params: {XLEN: 64, BOOT_ADDR: 0x0001_0000}
     control: isa
+    note: Rocket
   cdma:
     class: movement.dma
     params: {CHANNELS: 1, WIDTH: 64}
@@ -47,7 +52,11 @@ units:
 
 memory:
   - {name: cbuf, level: 1, kind: scratchpad, per: chip, size: 128KiB, banks: 32, width: 64}
-  - {name: dram, level: 2, kind: dram, per: chip}
+  - {name: l1d,  level: 1, kind: cache, per: host, size: 32KiB, ways: 8, line: 64}
+  - {name: l1i,  level: 1, kind: cache, per: host, size: 32KiB, ways: 8, line: 64}
+  - {name: l2,   level: 2, kind: cache, per: chip, size: 512KiB, banks: 1, ways: 8, line: 64}
+  - {name: sram, level: 2, kind: scratchpad, per: chip, size: 64KiB, note: TileLink RAM}
+  - {name: dram, level: 3, kind: dram, per: chip}
 
 movement:
   dma:
@@ -67,12 +76,12 @@ pipelines:
 
 interconnect:
   topology: bus
-  protocol: axi4                     # DBBIF; registers go over CSB (each unit's registers.bus)
+  protocol: tilelink                 # the system bus; NVDLA's DBBIF is 64-bit AXI4, converted (AXI4ToTL)
   width: 64
-  masters: [cdma, rdma]
-  slaves: [dram]
+  masters: [host, cdma, rdma]
+  slaves: [l2, sram, dram]
 
-control: {model: application, core: host, os: linux}
+control: {model: host, core: host, os: none}   # bare metal here; NVDLA's own runtime runs on Linux
 
 toolchain:
   compiler:  {command: "nvdla_compiler (nvdla/sw umd)", reads: [caffe model], writes: [loadable]}
@@ -84,7 +93,18 @@ toolchain:
     params: {ATOMIC_C: 8, ATOMIC_K: 8, CBUF_BANKS: 32, CBUF_BANK_DEPTH: 512, CBUF_BANK_WIDTH_B: 8,
              MEMIF_WIDTH: 64, SDP_BS: true, SDP_BN: true, SDP_EW: false, PDP: true, CDP: true, RUBIK: false, BDMA: false}
 
-source: {repo: "https://github.com/nvdla/hw", license: NVIDIA Open NVDLA License, note: commit pinned at E1}
+source: {repo: "https://github.com/nvdla/hw", commit: 8e06b1b9d85aab65b40d43d08eec5ea4681ff715,
+         license: NVIDIA Open NVDLA License,
+         note: "Chipyard 1.15.0 (157dd69) generators/nvdla d99ffdc, config SmallNVDLARocketConfig, vsrc/small"}
+
+address_map:
+  bootrom: {base: 0x0001_0000, size: 64KiB}
+  sram:    {base: 0x0800_0000, size: 64KiB}
+  nvdla:   {base: 0x1004_0000, size: 256KiB}
+  dram:    {base: 0x8000_0000, size: 256MiB}
+
+clocks:
+  chip: {freq: 500MHz, units: [host, cdma, rdma, conv, sdp, pdp, cdp]}
 
 space:
   toolchain.generator.params.ATOMIC_C: [8, 16, 32, 64]
