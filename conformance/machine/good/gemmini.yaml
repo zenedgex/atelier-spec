@@ -74,9 +74,11 @@ address_map:
 clocks:
   chip: {freq: 500MHz, units: [rocket, mesh, dma]}
 
-space:
-  toolchain.generator.params.meshRows: [8, 16, 32]
-  toolchain.generator.params.meshColumns: [8, 16, 32]
-  toolchain.generator.params.sp_capacity_kib: [128, 256, 512]
-  toolchain.generator.params.acc_capacity_kib: [32, 64, 128]
+space:                               # what GemminiArrayConfig can be built with; gemmini.h needs meshRows = meshColumns
+  toolchain.generator.params.meshRows: [8, 16, 32, 64]
+  toolchain.generator.params.meshColumns: [8, 16, 32, 64]
+  toolchain.generator.params.sp_capacity_kib: [128, 256, 512, 1024]
+  toolchain.generator.params.acc_capacity_kib: [32, 64, 128, 256]
+  toolchain.generator.params.sp_banks: [4, 8]
+  toolchain.generator.params.acc_banks: [2, 4]
   toolchain.generator.params.dma_buswidth: [64, 128, 256]
